@@ -33,12 +33,15 @@ async function main() {
         polygonSigner,
     );
     const aPolygon = await simpleStoragePolygon.getA();
+
     logger.info(`value of a in polygon ${aPolygon}`);
+
 
     // the first variable stored by the contact is a
     // so it should be at index 0 in the storage.
     const newValue = 1337;
     const itemAtStorage = await polygonProvider.getStorageAt(simpleStoragePolygon.address, 0);
+
     logger.info(`value of a from polygon storage ${itemAtStorage}`);
     logger.info(`value of a in polygon using getter ${await simpleStoragePolygon.getA()}`);
 
