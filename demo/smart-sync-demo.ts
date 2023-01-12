@@ -21,8 +21,8 @@ async function main() {
         abi,
         goerliSigner,
     );
-    const a = await simpleStorageGoerli.getA();
-    logger.info(a);
+    const aGoerli = await simpleStorageGoerli.getA();
+    logger.info(`value of a in goerli ${aGoerli}`);
 
     const simpleStoragePolygon = new ethers.Contract(
         DEPLOYED_CONTRACT_ADDRESS_MUMBAI as string,
@@ -30,17 +30,30 @@ async function main() {
         polygonSigner,
     );
     const aPolygon = await simpleStoragePolygon.getA();
-    logger.info(aPolygon);
+    logger.info(`value of a in polygon ${aPolygon}`);
 
     // the first variable stored by the contact is a
     // so it should be at index 0 in the storage.
     const newValue = 1337;
     const itemAtStorage = await polygonProvider.getStorageAt(simpleStoragePolygon.address, 0);
-    logger.info(itemAtStorage, await simpleStoragePolygon.getA());
+    logger.info(`value of a from polygon storage ${itemAtStorage}`);
+    logger.info(`value of a in polygon using getter ${await simpleStoragePolygon.getA()}`);
 
     // eslint-disable-next-line no-underscore-dangle
-    logger.info(itemAtStorage._hex === await simpleStoragePolygon.getA()); // false because item at storage is padded
-    logger.info(ethers.BigNumber.from(itemAtStorage).toNumber() === newValue);
+    // false because item at storage is padded
+    logger.info('value from storage as hex == value from getter', itemAtStorage._hex === await simpleStoragePolygon.getA()); 
+    logger.info('value from storage as number == value set in contract', ethers.BigNumber.from(itemAtStorage).toNumber() === newValue);
+
+    // using storage key to acces value at storage location
+    const paddedSlot = ethers.utils.hexZeroPad('0x00', 32);
+    const storageKey = paddedSlot;
+    const storageLocation = await polygonProvider.getStorageAt(simpleStoragePolygon.address, storageKey);
+    const storageValue = ethers.BigNumber.from(storageLocation);
+    logger.info('value accessed with storage key as number == value set in contract', ethers.BigNumber.from(storageValue).toNumber() === newValue);
+
 }
 
 main();
+
+
+// usage - npx hardhat run demo/smart-sync-demo.ts
