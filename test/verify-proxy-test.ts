@@ -75,13 +75,14 @@ describe('Verify State proof', () => {
         const keys = await provider.send('parity_listStorageKeys', [
             storage.address, 5, null,
         ]);
+
         // [`eth_getProof`](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1186.md) implemented at
         // https://github.com/openethereum/openethereum/blob/27a0142af14730bcb50eeacc84043dc6f49395e8/rpc/src/v1/impls/eth.rs#L677
         const proof = <GetProof> await provider.send('eth_getProof', [storage.address, keys]);
 
         // get the latest block
         const block = await provider.send('eth_getBlockByNumber', ['latest', true]);
-
+        console.log('proof structure', proof);
         // verify the proof against the block's state root
         expect(await verifyEthGetProof(proof, block.stateRoot)).to.be.true;
     });
