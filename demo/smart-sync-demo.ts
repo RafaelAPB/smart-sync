@@ -43,6 +43,7 @@ async function main() {
     logger.info(`value of a in polygon using getter ${await simpleStoragePolygon.getA()}`);
 
     // eslint-disable-next-line no-underscore-dangle
+
     // false because item at storage is padded
     logger.info('value from storage as hex == value from getter', itemAtStorage._hex === await simpleStoragePolygon.getA()); 
     logger.info('value from storage as number == value set in contract', ethers.BigNumber.from(itemAtStorage).toNumber() === newValue);
@@ -53,7 +54,6 @@ async function main() {
     const storageLocation = await polygonProvider.getStorageAt(simpleStoragePolygon.address, storageKey);
     const storageValue = ethers.BigNumber.from(storageLocation);
     logger.info('value accessed with storage key as number == value set in contract', ethers.BigNumber.from(storageValue).toNumber() === newValue);
-
 }
 
 main();
