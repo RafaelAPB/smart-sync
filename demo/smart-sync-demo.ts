@@ -54,9 +54,16 @@ async function main() {
     const storageLocation = await polygonProvider.getStorageAt(simpleStoragePolygon.address, storageKey);
     const storageValue = ethers.BigNumber.from(storageLocation);
     logger.info('value accessed with storage key as number == value set in contract', ethers.BigNumber.from(storageValue).toNumber() === newValue);
+
+    // Should return a valid proof
+    // keys
+    const keyList = [storageKey];
+    // get the latest block
+    const block = await polygonProvider.send('eth_getBlockByNumber', ['latest', true]);
+    const proof = await polygonProvider.send('eth_getProof', [simpleStoragePolygon.address, keyList, block.number]);
 }
 
 main();
 
-
 // usage - npx hardhat run demo/smart-sync-demo.ts
+// to run single smart-sync unit test file - npm run test test/verify-proxy-test.ts 
