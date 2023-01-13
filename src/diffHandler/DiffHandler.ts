@@ -83,7 +83,7 @@ class DiffHandler {
      * @param srcBlock the number of the block that is the base for this comparison
      * @returns the diff between the storage of the two contracts at their specific blocks as list of `StorageDiff`
      */
-    async getDiffFromStorage(srcAddress: string, targetAddress?: string, srcBlock?: string | number, targetBlock?: string | number): Promise<StorageDiff> {
+    async getDiffFromStorage(srcAddress: string, targetAddress?: string, srcBlock?: string | number, targetBlock?: string | number, storageKeySrc?: string, storageKeyTarget?: string): Promise<StorageDiff> {
         let processedParameters: ProcessedParameters;
         try {
             processedParameters = await processParameters(srcAddress, this.srcProvider, srcBlock, targetAddress, this.targetProvider, targetBlock);
@@ -92,9 +92,16 @@ class DiffHandler {
             return new StorageDiff([], [], []);
         }
 
-        const toKeys: Array<string> = await getAllKeys(processedParameters.targetAddress, this.targetProvider, processedParameters.targetBlock, this.batchSize);
-        const fromKeys: Array<string> = await getAllKeys(processedParameters.srcAddress, this.srcProvider, processedParameters.srcBlock, this.batchSize);
+        let toKeys;
+        let fromKeys;
 
+        if (storageKeySrc === undefined) {
+            toKeys = await getAllKeys(processedParameters.targetAddress, this.targetProvider, processedParameters.targetBlock, this.batchSize);
+            fromKeys = await getAllKeys(processedParameters.srcAddress, this.srcProvider, processedParameters.srcBlock, this.batchSize);
+        } else {
+            fromKeys = [storageKeySrc];
+            toKeys = [storageKeyTarget];
+        }
         const diffs: StorageKeyDiff[] = [];
 
         /* eslint-disable no-await-in-loop */
