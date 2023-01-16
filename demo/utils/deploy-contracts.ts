@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { ethers } from 'ethers';
 import { logger } from '../../src/utils/logger';
 
@@ -30,6 +31,12 @@ const bytecodeRelayer = require('../../artifacts/contracts/RelayContract.sol/Rel
 
 const Relay = new ethers.ContractFactory(abiRelayer, bytecodeRelayer, goerliSigner);
 
+const abiMapping = require('../../artifacts/contracts/MappingContract.sol/MappingContract.json').abi;
+const bytecodeMapping = require('../../artifacts/contracts/MappingContract.sol/MappingContract.json').bytecode;
+
+const Mapper = new ethers.ContractFactory(abiMapping, bytecodeMapping, goerliSigner);
+
+
 async function deploySimpleStorage() {
     logger.info('Deploying Simple Storage on Goerli');
     try {
@@ -47,6 +54,16 @@ async function deployRLPReader() {
         const RLPReaderContract = await RLPReader.deploy();
         await RLPReaderContract.deployed();
         logger.info(`Contract RLPReaderContract deployed at: ${RLPReaderContract.address}`);
+    } catch (error) {
+        logger.error(error);
+    }
+}
+async function deployMapping() {
+    try {
+        logger.info('Deploying Mapping on Goerli');
+        const mapperContract = await Mapper.deploy();
+        await mapperContract.deployed();
+        logger.info(`Contract mapperContract deployed at: ${mapperContract.address}`);
     } catch (error) {
         logger.error(error);
     }
@@ -69,4 +86,9 @@ async function main() {
     await deployRelay();
 }
 
-main();
+main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+        logger.error(error);
+        process.exit(1);
+    });
