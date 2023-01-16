@@ -1,7 +1,7 @@
 // taken from https://github.com/KyberNetwork/peace-relay/blob/master/contracts/MerklePatriciaProof.sol
-pragma solidity >=0.6.0 <0.8.0;
+pragma solidity 0.7.0;
 
-import "solidity-rlp/contracts/RLPReader.sol";
+import "./RLPReader.sol";
 
 library MerklePatriciaProof {
 

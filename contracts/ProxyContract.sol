@@ -1,10 +1,10 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity >=0.6.0 <0.8.0;
+pragma solidity 0.7.0;
 
 import "./RelayContract.sol";
 import "./GetProofLib.sol";
 import "./RLPWriter.sol";
-import "solidity-rlp/contracts/RLPReader.sol";
+import "./RLPReader.sol";
 
 contract ProxyContract {
     enum NodeType { BRANCH, EXTENSION, LEAF, DELETED, HASHED }
