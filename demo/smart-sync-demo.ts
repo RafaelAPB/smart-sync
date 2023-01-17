@@ -8,7 +8,7 @@ import { verifyEthGetProof } from '../test/test-utils';
 import {
     abiProxyContract, abiSimpleStorage, abiSyncCandidate, compileAndDeployProxyContract, abiRelay,
 } from './utils/deploy-contracts';
-import { initProxyContract } from './utils/initialize-contracts';
+import { updateProxyContract } from './utils/initialize-contracts';
 
 require('dotenv').config();
 
@@ -159,7 +159,7 @@ async function main() {
 
     // TODO do diff for hardcoded keys
     try {
-        await initProxyContract(proxyContract, proof, simpleStoragePolygon.address, storageKey);
+        await updateProxyContract(proxyContract, proof, simpleStoragePolygon.address, storageKey);
     } catch (error) {
         logger.error(error);
     }
