@@ -1,10 +1,12 @@
+import { expect } from 'chai';
 import { ethers } from 'ethers';
+import { encodeBlockHeader } from '../src/chain-proxy';
 import DiffHandler from '../src/diffHandler/DiffHandler';
 import GetProof from '../src/proofHandler/GetProof';
 import { logger } from '../src/utils/logger';
 import { verifyEthGetProof } from '../test/test-utils';
 import {
-    abiProxyContract, abiSimpleStorage, abiSyncCandidate, compileAndDeployProxyContract,
+    abiProxyContract, abiSimpleStorage, abiSyncCandidate, compileAndDeployProxyContract, abiRelay,
 } from './utils/deploy-contracts';
 import { initProxyContract } from './utils/initialize-contracts';
 
@@ -13,7 +15,7 @@ require('dotenv').config();
 logger.setSettings({ minLevel: 'info', name: 'demo' });
 
 const {
-    PRIVATE_KEY, DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, RPC_URL_GOERLI, RPC_URL_MUMBAI, RPC_LOCALHOST_ORIGIN, RPC_LOCALHOST_TARGET, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE, DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE,
+    PRIVATE_KEY, DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, RPC_URL_GOERLI, RPC_URL_MUMBAI, GAS_LIMIT, RPC_LOCALHOST_ORIGIN, RPC_LOCALHOST_TARGET, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE, DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE,
 } = process.env;
 
 const goerliProvider = new ethers.providers.JsonRpcProvider(RPC_URL_GOERLI);
@@ -21,9 +23,6 @@ const polygonProvider = new ethers.providers.JsonRpcProvider(RPC_URL_MUMBAI);
 
 const goerliSigner = new ethers.Wallet(PRIVATE_KEY as string, goerliProvider);
 const polygonSigner = new ethers.Wallet(PRIVATE_KEY as string, polygonProvider);
-
-const abiRelay = require('../artifacts/contracts/RelayContract.sol/RelayContract.json').abi;
-const bytecodeRelay = require('../artifacts/contracts/RelayContract.sol/RelayContract.json').bytecode;
 
 const differ = new DiffHandler(polygonProvider);
 
@@ -54,6 +53,14 @@ async function main() {
     const aGoerli = await simpleStorageGoerli.getA();
     logger.info(`value of variable "a" in goerli ${aGoerli}`);
 
+    // means we already ran the demo and change the target contract storage, let us reset it to 1
+    if (aGoerli === 1337) {
+        const transaction = await simpleStorageGoerli.setA(0);
+        logger.warn(`state reverted to original: ${transaction}`);
+        const newValue = await simpleStorageGoerli.getA();
+        logger.warn(`reset value of variable "a" in goerli ${newValue}`);
+    }
+
     const simpleStoragePolygon = new ethers.Contract(
         DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI as string,
         abiSimpleStorage,
@@ -78,7 +85,7 @@ async function main() {
 
     // false because item at storage is padded
     // eslint-disable-next-line no-underscore-dangle
-    logger.info('value from storage as hex == value from getter', itemAtStorage._hex === await simpleStoragePolygon.getA());
+    logger.info('value from storage as hex == value from getter', itemAtStorage === await simpleStoragePolygon.getA());
     logger.info('value from storage as number == value set in contract', ethers.BigNumber.from(itemAtStorage).toNumber() === newValue);
 
     // using storage key to access value at storage location
@@ -105,7 +112,7 @@ async function main() {
     // get the latest block
     const block = await polygonProvider.send('eth_getBlockByNumber', ['latest', true]);
     // Gets updated merkle proof (latest block) for our Polygon address
-    const proof = await polygonProvider.send('eth_getProof', [simpleStoragePolygon.address, keyList, block.number]);
+    const proof = new GetProof(await polygonProvider.send('eth_getProof', [simpleStoragePolygon.address, keyList, block.number]));
     logger.info(`Proof for storage key ${proof.storageProof[0].key} of address ${simpleStoragePolygon.address} is: ${proof.storageProof[0].proof}`);
 
     // https://mumbai.polygonscan.com/address/0x5110B4b4Fea7137895d33B8a0b11330A1B2586E9 block before contract deployment
@@ -151,9 +158,40 @@ async function main() {
     );
 
     // TODO do diff for hardcoded keys
-    await initProxyContract(proxyContract, proof, simpleStorageGoerli.address);
+    try {
+        await initProxyContract(proxyContract, proof, simpleStoragePolygon.address, storageKey);
+    } catch (error) {
+        logger.error(error);
+    }
 
-    // STEP: update values across chains for hardcoded storage values
+    // STEP: update values across chains for hardcoded storage values using the relay contract
+
+    const latestBlock = await polygonProvider.send('eth_getBlockByNumber', ['latest', true]);
+    const sourceAccountProof = await proof.optimizedProof(latestBlock.stateRoot, false);
+
+    const latestProxyChainBlock = await goerliProvider.send('eth_getBlockByNumber', ['latest', false]);
+
+    // TODO our RPC does not support this method
+    const proxyChainProof = new GetProof(await goerliProvider.send('eth_getProof', [proxyContract.address, []]));
+    const proxyAccountProof = await proxyChainProof.optimizedProof(latestProxyChainBlock.stateRoot, false);
+
+    //  getting encoded block header
+    const encodedBlockHeader = encodeBlockHeader(latestProxyChainBlock);
+
+    await relayGoerli.verifyMigrateContract(sourceAccountProof, proxyAccountProof, encodedBlockHeader, proxyContract.address, ethers.BigNumber.from(latestProxyChainBlock.number).toNumber(), ethers.BigNumber.from(latestBlock.number).toNumber(), { gasLimit: GAS_LIMIT });
+
+    //  validating
+    const migrationValidated = await relayGoerli.getMigrationState(proxyContract.address);
+    logger.info(`migration validated is true? ${migrationValidated}`);
+
+    // The storage diff between `srcContract` and `proxyContract` comes up empty: both storage layouts are the same
+    const finalDiff = await differ.getDiffFromStorage(simpleStoragePolygon.address, proxyContract.address, 'latest', 'latest', storageKey, storageKey);
+    logger.info(`diff is empty? ${finalDiff}`);
 }
 
-main();
+main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+        logger.error(error);
+        process.exit(1);
+    });
