@@ -30,10 +30,10 @@ const bytecodeRLPReader = require('../../artifacts/contracts/RLPReader.sol/RLPRe
 
 const RLPReader = new ethers.ContractFactory(abiRLPReader, bytecodeRLPReader, goerliSigner);
 
-const abiRelayer = require('../../artifacts/contracts/RelayContract.sol/RelayContract.json').abi;
-const bytecodeRelayer = require('../../artifacts/contracts/RelayContract.sol/RelayContract.json').bytecode;
+export const abiRelay = require('../../artifacts/contracts/RelayContract.sol/RelayContract.json').abi;
+export const bytecodeRelay = require('../../artifacts/contracts/RelayContract.sol/RelayContract.json').bytecode;
 
-const Relay = new ethers.ContractFactory(abiRelayer, bytecodeRelayer, goerliSigner);
+const Relay = new ethers.ContractFactory(abiRelay, bytecodeRelay, goerliSigner);
 
 const abiMapping = require('../../artifacts/contracts/MappingContract.sol/MappingContract.json').abi;
 const bytecodeMapping = require('../../artifacts/contracts/MappingContract.sol/MappingContract.json').bytecode;

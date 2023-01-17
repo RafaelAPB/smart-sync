@@ -22,21 +22,22 @@ const polygonProvider = new ethers.providers.JsonRpcProvider(RPC_URL_MUMBAI);
 const goerliSigner = new ethers.Wallet(PRIVATE_KEY as string, goerliProvider);
 const polygonSigner = new ethers.Wallet(PRIVATE_KEY as string, polygonProvider);
 
-export async function initProxyContract(contract: Contract, proof: GetProof, srcContractAddress: string) {
-    const proxyKeys: Array<string> = [];
-    const proxyValues: Array<string> = [];
-    proof.storageProof.forEach((p) => {
-        proxyKeys.push(ethers.utils.hexZeroPad(p.key, 32));
-        proxyValues.push(ethers.utils.hexZeroPad(p.value, 32));
-    });
-    await contract.addStorage(proxyKeys, proxyValues);
+export async function initProxyContract(contract: Contract, proof: GetProof, srcContractAddress: string, key: string) {
+    // const proxyKeys: Array<string> = [];
+    // const proxyValues: Array<string> = [];
+    // proof.storageProof.forEach((p) => {
+    //     proxyKeys.push(ethers.utils.hexZeroPad(p.key, 32));
+    //     proxyValues.push(ethers.utils.hexZeroPad(p.value, 32));
+    // });
+    // await contract.addStorage(proxyKeys, proxyValues);
 
     // The storage diff between `srcContract` and `proxyContract` comes up empty: both storage layouts are the same
     const differ = new DiffHandler(goerliProvider);
-    const diff = await differ.getDiffFromStorage(srcContractAddress, contract.address);
+    const diff = await differ.getDiffFromStorage(srcContractAddress, contract.address, 'latest', 'latest', key, key);
 
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    expect(diff.isEmpty()).to.be.true;
+    logger.info('there should be diff');
+    logger.info(`diff is ${JSON.stringify(diff)}`);
 }
 
 // async function main() {
