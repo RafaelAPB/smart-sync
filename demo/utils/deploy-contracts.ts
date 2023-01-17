@@ -1,3 +1,4 @@
+/* eslint-disable global-require */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { expect } from 'chai';
 import { Contract, ethers } from 'ethers';
@@ -10,7 +11,7 @@ require('dotenv').config();
 logger.setSettings({ minLevel: 'info', name: 'demo-utils:deploy-contracts' });
 
 const {
-    PRIVATE_KEY, RPC_URL_GOERLI, RPC_URL_MUMBAI, RPC_LOCALHOST_ORIGIN, RPC_LOCALHOST_TARGET, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE, DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE,
+    PRIVATE_KEY, RPC_URL_GOERLI, RPC_URL_MUMBAI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, RPC_LOCALHOST_ORIGIN, RPC_LOCALHOST_TARGET, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE, DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE,
 } = process.env;
 
 const goerliProvider = new ethers.providers.JsonRpcProvider(RPC_URL_GOERLI);
@@ -19,8 +20,8 @@ const polygonProvider = new ethers.providers.JsonRpcProvider(RPC_URL_MUMBAI);
 const goerliSigner = new ethers.Wallet(PRIVATE_KEY as string, goerliProvider);
 const polygonSigner = new ethers.Wallet(PRIVATE_KEY as string, polygonProvider);
 
-const abiSimpleStorage = require('../../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json').abi;
-const bytecodeSimpleStorage = require('../../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json').bytecode;
+export const abiSimpleStorage = require('../../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json').abi;
+export const bytecodeSimpleStorage = require('../../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json').bytecode;
 
 const SimpleStorage = new ethers.ContractFactory(abiSimpleStorage, bytecodeSimpleStorage, goerliSigner);
 
@@ -39,10 +40,15 @@ const bytecodeMapping = require('../../artifacts/contracts/MappingContract.sol/M
 
 const Mapper = new ethers.ContractFactory(abiMapping, bytecodeMapping, goerliSigner);
 
-const abiSyncCandidate = require('../../artifacts/contracts/SyncCandidate.sol/SyncCandidate.json').abi;
-const bytecodeSyncCandidate = require('../../artifacts/contracts/SyncCandidate.sol/SyncCandidate.json').bytecode;
+export const abiSyncCandidate = require('../../artifacts/contracts/SyncCandidate.sol/SyncCandidate.json').abi;
+export const bytecodeSyncCandidate = require('../../artifacts/contracts/SyncCandidate.sol/SyncCandidate.json').bytecode;
 
 const SyncCandidate = new ethers.ContractFactory(abiSyncCandidate, bytecodeSyncCandidate, goerliSigner);
+
+export const abiProxyContract = require('../../artifacts/contracts/ProxyContract.sol/ProxyContract.json').abi;
+export const bytecodeProxyContract = require('../../artifacts/contracts/ProxyContract.sol/ProxyContract.json').bytecode;
+
+const ProxyContract = new ethers.ContractFactory(abiProxyContract, bytecodeProxyContract, goerliSigner);
 
 async function deploySimpleStorage() {
     logger.info('Deploying Simple Storage on Goerli');
@@ -98,13 +104,14 @@ async function deploySyncCandidate() {
     }
 }
 
-async function deployProxyContract(): Promise<Contract | undefined> {
+export async function compileAndDeployProxyContract(): Promise<Contract | undefined> {
     try {
         logger.info('Compiling ProxyContract');
-        if (!DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE || !DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI || !DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE) {
+        // DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE and DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE could be used 
+        if (!DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI|| !DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI) {
             throw new Error('Contracts need to be deployed and set up in the .env file');
         }
-        const compiledProxy = await ProxyContractBuilder.compiledAbiAndBytecode(DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE, DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE);
+        const compiledProxy = await ProxyContractBuilder.compiledAbiAndBytecode(DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI);
         if (compiledProxy.error) {
             throw Error('Could not compile proxy');
         }
@@ -118,15 +125,3 @@ async function deployProxyContract(): Promise<Contract | undefined> {
         return undefined;
     }
 }
-
-async function main() {
-    await deploySyncCandidate();
-    await deploySyncCandidate();
-}
-
-main()
-    .then(() => process.exit(0))
-    .catch((error) => {
-        logger.error(error);
-        process.exit(1);
-    });

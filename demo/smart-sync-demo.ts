@@ -3,13 +3,17 @@ import DiffHandler from '../src/diffHandler/DiffHandler';
 import GetProof from '../src/proofHandler/GetProof';
 import { logger } from '../src/utils/logger';
 import { verifyEthGetProof } from '../test/test-utils';
+import {
+    abiProxyContract, abiSimpleStorage, abiSyncCandidate, compileAndDeployProxyContract,
+} from './utils/deploy-contracts';
+import { initProxyContract } from './utils/initialize-contracts';
 
 require('dotenv').config();
 
 logger.setSettings({ minLevel: 'info', name: 'demo' });
 
 const {
-    PRIVATE_KEY, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, RPC_URL_GOERLI, RPC_URL_MUMBAI, RPC_LOCALHOST_ORIGIN, RPC_LOCALHOST_TARGET,DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI
+    PRIVATE_KEY, DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, RPC_URL_GOERLI, RPC_URL_MUMBAI, RPC_LOCALHOST_ORIGIN, RPC_LOCALHOST_TARGET, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE, DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE,
 } = process.env;
 
 const goerliProvider = new ethers.providers.JsonRpcProvider(RPC_URL_GOERLI);
@@ -18,7 +22,6 @@ const polygonProvider = new ethers.providers.JsonRpcProvider(RPC_URL_MUMBAI);
 const goerliSigner = new ethers.Wallet(PRIVATE_KEY as string, goerliProvider);
 const polygonSigner = new ethers.Wallet(PRIVATE_KEY as string, polygonProvider);
 
-const { abi, bytecode } = require('../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json');
 const abiRelay = require('../artifacts/contracts/RelayContract.sol/RelayContract.json').abi;
 const bytecodeRelay = require('../artifacts/contracts/RelayContract.sol/RelayContract.json').bytecode;
 
@@ -26,9 +29,26 @@ const differ = new DiffHandler(polygonProvider);
 
 async function main() {
     // STEP: Deploy/Retrieve Base Contracts //
+
+    // Base contracts SyncCandidate
+    // const srcContract = new ethers.Contract(
+    //     DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE as string,
+    //     abiSyncCandidate,
+    //     goerliSigner,
+    // );
+    // logger.info(`Using srcAddress deployed at ${srcContract.address}`);
+
+    // const logicContract = new ethers.Contract(
+    //     DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE as string,
+    //     abiSyncCandidate,
+    //     goerliSigner,
+    // );
+    // logger.info(`Using logicContract deployed at ${logicContract.address}`);
+
+    // Base contracts are simple storage contracts
     const simpleStorageGoerli = new ethers.Contract(
         DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI as string,
-        abi,
+        abiSimpleStorage,
         goerliSigner,
     );
     const aGoerli = await simpleStorageGoerli.getA();
@@ -36,7 +56,7 @@ async function main() {
 
     const simpleStoragePolygon = new ethers.Contract(
         DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI as string,
-        abi,
+        abiSimpleStorage,
         polygonSigner,
     );
 
@@ -115,11 +135,25 @@ async function main() {
         abiRelay,
         goerliSigner,
     );
-        logger.info(`Using relay contract deployed at ${relayGoerli.address}`);
+    logger.info(`Using relay contract deployed at ${relayGoerli.address}`);
     // STEP: Deploy / Retrieve Secondary Contract (State Proxy) //
+
+    // If addresses from logic contract, src address contract or relay contract change, new proxy needs to be setup and deployed
+    // const proxyContract = await compileAndDeployProxyContract();
+    // if (!proxyContract) {
+    //     logger.error('Could not compile and deploy proxy contract correctly');
+    //     throw new Error('Could not compile and deploy proxy contract correctly');
+    // }
+    const proxyContract = new ethers.Contract(
+        DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI as string,
+        abiProxyContract,
+        goerliSigner,
+    );
+
+    // TODO do diff for hardcoded keys
+    await initProxyContract(proxyContract, proof, simpleStorageGoerli.address);
+
+    // STEP: update values across chains for hardcoded storage values
 }
 
 main();
-
-// usage - npx hardhat run demo/smart-sync-demo.ts
-// to run single smart-sync unit test file - npm run test test/verify-proxy-test.ts
