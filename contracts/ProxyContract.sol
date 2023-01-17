@@ -25,19 +25,19 @@ contract ProxyContract {
     * @dev address of the deployed relay contract.
     * The address in the file is a placeholder
     */
-    address internal constant RELAY_ADDRESS = 0xeBf794b5Cf0217CB806f48d2217D3ceE1e25A7C3;
+    address internal constant RELAY_ADDRESS = 0x75b82024F44F5633983B49558Fb66Cd113655ae4;
 
     /**
     * @dev address of the contract that is being mirrored.
     * The address in the file is a placeholder
     */
-    address internal constant SOURCE_ADDRESS = 0x0a911618A3dD806a5D14bf856cf355C4b9C84526;
+    address internal constant SOURCE_ADDRESS = 0x5110B4b4Fea7137895d33B8a0b11330A1B2586E9;
 
     /**
     * @dev address of the contract that is being mirrored.
     * The address in the file is a placeholder
     */
-    address internal constant LOGIC_ADDRESS = 0x55f2155f2fEdbf701262573Be477A6562E09AeE0;
+    address internal constant LOGIC_ADDRESS = 0x5110B4b4Fea7137895d33B8a0b11330A1B2586E9;
 
     constructor() public {
     }
@@ -165,7 +165,7 @@ contract ProxyContract {
         _beforeFallback();
         _delegateLogic();
     }
-
+    
     /**
      * @dev Fallback function that delegates calls to the address returned by `_implementation()`. Will run if no other
      * function in the contract matches the call data.
