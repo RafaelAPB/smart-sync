@@ -174,6 +174,9 @@ contract ProxyContract {
         _fallback();
     }
 
+    receive() external payable   {
+
+    }
     /**
     * @dev Delegates the current call to `implementation`.
     *
