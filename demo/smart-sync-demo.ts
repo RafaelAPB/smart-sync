@@ -171,8 +171,7 @@ async function main() {
 
     const latestProxyChainBlock = await goerliProvider.send('eth_getBlockByNumber', ['latest', false]);
 
-    // TODO our RPC does not support this method
-    const proxyChainProof = new GetProof(await goerliProvider.send('eth_getProof', [proxyContract.address, []]));
+    const proxyChainProof = new GetProof(await goerliProvider.send('eth_getProof', [proxyContract.address, [], latestProxyChainBlock.number]));
     const proxyAccountProof = await proxyChainProof.optimizedProof(latestProxyChainBlock.stateRoot, false);
 
     //  getting encoded block header
