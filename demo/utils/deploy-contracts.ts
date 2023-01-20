@@ -125,3 +125,14 @@ export async function compileAndDeployProxyContract(): Promise<Contract | undefi
         return undefined;
     }
 }
+
+async function main() {
+    await deploySimpleStorage();
+}
+
+main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+        logger.error(error);
+        process.exit(1);
+    });
