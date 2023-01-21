@@ -1,21 +1,28 @@
+/* eslint-disable @typescript-eslint/no-unused-expressions */
 import { expect } from 'chai';
 import { ethers } from 'ethers';
+import path from 'path';
+import { RelayContract } from '../src-gen/types';
+import { SimpleStorage } from '../src-gen/types/SimpleStorage';
 import { encodeBlockHeader } from '../src/chain-proxy';
+import { TxContractInteractionOptions } from '../src/cli/smart-sync';
 import DiffHandler from '../src/diffHandler/DiffHandler';
 import GetProof from '../src/proofHandler/GetProof';
+import FileHandler from '../src/utils/fileHandler';
 import { logger } from '../src/utils/logger';
-import { verifyEthGetProof } from '../test/test-utils';
+import { TestChainProxy, verifyEthGetProof } from '../test/test-utils';
 import {
-    abiProxyContract, abiSimpleStorage, abiSyncCandidate, compileAndDeployProxyContract, abiRelay,
-} from './utils/deploy-contracts';
+    ContractArtifacts
+} from './utils/artifacts';
 import { updateProxyContract } from './utils/initialize-contracts';
+import { TestChainProxySimpleStorage } from './utils/test-chain-proxy-simple-storage';
 
 require('dotenv').config();
 
 logger.setSettings({ minLevel: 'info', name: 'demo' });
 
 const {
-    PRIVATE_KEY, DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, RPC_URL_GOERLI, RPC_URL_MUMBAI, GAS_LIMIT, RPC_LOCALHOST_ORIGIN, RPC_LOCALHOST_TARGET, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE, DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE,
+    PRIVATE_KEY, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_LOGIC_CONTRACT, DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_SRC_CONTRACT, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, RPC_URL_GOERLI, RPC_URL_MUMBAI, GAS_LIMIT, RPC_LOCALHOST_ORIGIN, RPC_LOCALHOST_TARGET, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE, DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE,
 } = process.env;
 
 const goerliProvider = new ethers.providers.JsonRpcProvider(RPC_URL_GOERLI);
@@ -23,10 +30,17 @@ const polygonProvider = new ethers.providers.JsonRpcProvider(RPC_URL_MUMBAI);
 
 const goerliSigner = new ethers.Wallet(PRIVATE_KEY as string, goerliProvider);
 const polygonSigner = new ethers.Wallet(PRIVATE_KEY as string, polygonProvider);
+const MAX_VALUE = 1000000;
 
-const differ = new DiffHandler(polygonProvider);
-
+const differ = new DiffHandler(polygonProvider, goerliProvider);
+const configPath = path.join(__dirname, './config/demo-config.json');
 async function main() {
+    const fh = new FileHandler(configPath);
+    const chainConfigs = fh.getJSON<TxContractInteractionOptions>();
+    if (!chainConfigs) {
+        logger.error(`No config available under ${configPath}`);
+        process.exit(-1);
+    }
     // STEP: Deploy/Retrieve Base Contracts //
 
     // Base contracts SyncCandidate
@@ -45,25 +59,32 @@ async function main() {
     // logger.info(`Using logicContract deployed at ${logicContract.address}`);
 
     // Base contracts are simple storage contracts
-    const simpleStorageGoerli = new ethers.Contract(
-        DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI as string,
-        abiSimpleStorage,
+    const srcContractSimpleStorageGoerli = new ethers.Contract(
+        DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_SRC_CONTRACT as string,
+        ContractArtifacts.abiSimpleStorage,
         goerliSigner,
     );
-    const aGoerli = await simpleStorageGoerli.getA();
+    const aGoerli = await srcContractSimpleStorageGoerli.getA();
     logger.info(`value of variable "a" in goerli ${aGoerli}`);
+
+    // Base contracts are simple storage contracts
+    const logicContractSimpleStorageGoerli = new ethers.Contract(
+        DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_LOGIC_CONTRACT as string,
+        ContractArtifacts.abiSimpleStorage,
+        goerliSigner,
+    );
 
     // means we already ran the demo and change the target contract storage, let us reset it to 1
     if (aGoerli === 1337) {
-        const transaction = await simpleStorageGoerli.setA(0);
+        const transaction = await srcContractSimpleStorageGoerli.setA(0);
         logger.warn(`state reverted to original: ${transaction}`);
-        const newValue = await simpleStorageGoerli.getA();
+        const newValue = await srcContractSimpleStorageGoerli.getA();
         logger.warn(`reset value of variable "a" in goerli ${newValue}`);
     }
 
     const simpleStoragePolygon = new ethers.Contract(
         DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI as string,
-        abiSimpleStorage,
+        ContractArtifacts.abiSimpleStorage,
         polygonSigner,
     );
 
@@ -103,7 +124,7 @@ async function main() {
     logger.info('value var b', storageValueBDecimal);
 
     // Phase 3: Calculate state diff // 30619625 = 1D337E9; 8266352 = 7E2270; //
-    const diff = await differ.getDiffFromStorage(simpleStoragePolygon.address, simpleStorageGoerli.address, '0x1D337E9', '0x7E2270', storageKey, storageKey);
+    let diff = await differ.getDiffFromStorage(simpleStoragePolygon.address, srcContractSimpleStorageGoerli.address, '0x1D337E9', '0x7E2270', storageKey, storageKey);
     logger.info('Diff between storages right after setting values of A is: ', diff);
 
     // Phase 4: Get storage proofs //
@@ -139,54 +160,54 @@ async function main() {
 
     const relayGoerli = new ethers.Contract(
         DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI as string,
-        abiRelay,
+        ContractArtifacts.abiRelay,
         goerliSigner,
     );
     logger.info(`Using relay contract deployed at ${relayGoerli.address}`);
     // STEP: Deploy / Retrieve Secondary Contract (State Proxy) //
 
-    // If addresses from logic contract, src address contract or relay contract change, new proxy needs to be setup and deployed
-    // const proxyContract = await compileAndDeployProxyContract();
-    // if (!proxyContract) {
-    //     logger.error('Could not compile and deploy proxy contract correctly');
-    //     throw new Error('Could not compile and deploy proxy contract correctly');
-    // }
-    const proxyContract = new ethers.Contract(
-        DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI as string,
-        abiProxyContract,
+    const chainProxy = new TestChainProxySimpleStorage(
+        srcContractSimpleStorageGoerli as SimpleStorage,
+        logicContractSimpleStorageGoerli as SimpleStorage,
+        chainConfigs,
+        polygonSigner,
         goerliSigner,
+        relayGoerli as RelayContract,
+        polygonProvider,
+        goerliProvider,
     );
-
-    // TODO do diff for hardcoded keys
+    logger.debug(`srcContractAddress: ${srcContractSimpleStorageGoerli.address}, relayContract: ${relayGoerli.address}`);
+    let initialization;
     try {
-        await updateProxyContract(proxyContract, proof, simpleStoragePolygon.address, storageKey);
+        initialization = await chainProxy.initializeProxyContract();
     } catch (error) {
         logger.error(error);
     }
-
-    // STEP: update values across chains for hardcoded storage values using the relay contract
-
-    const latestBlock = await polygonProvider.send('eth_getBlockByNumber', ['latest', true]);
-    const sourceAccountProof = await proof.optimizedProof(latestBlock.stateRoot, false);
-
-    const latestProxyChainBlock = await goerliProvider.send('eth_getBlockByNumber', ['latest', false]);
-
-    const proxyChainProof = new GetProof(await goerliProvider.send('eth_getProof', [proxyContract.address, [], latestProxyChainBlock.number]));
-    
-    const proxyAccountProof = await proxyChainProof.optimizedProof(latestProxyChainBlock.stateRoot, false);
-
-    //  getting encoded block header
-    const encodedBlockHeader = encodeBlockHeader(latestProxyChainBlock);
-
-    await relayGoerli.verifyMigrateContract(sourceAccountProof, proxyAccountProof, encodedBlockHeader, proxyContract.address, ethers.BigNumber.from(latestProxyChainBlock.number).toNumber(), ethers.BigNumber.from(latestBlock.number).toNumber(), { gasLimit: GAS_LIMIT });
-
-    //  validating
-    const migrationValidated = await relayGoerli.getMigrationState(proxyContract.address);
-    logger.info(`migration validated is true? ${migrationValidated}`);
+    expect(initialization.migrationState).to.be.true;
 
     // The storage diff between `srcContract` and `proxyContract` comes up empty: both storage layouts are the same
-    const finalDiff = await differ.getDiffFromStorage(simpleStoragePolygon.address, proxyContract.address, 'latest', 'latest', storageKey, storageKey);
-    logger.info(`diff is empty? ${finalDiff}`);
+    diff = await differ.getDiffFromStorage(srcContractSimpleStorageGoerli.address, initialization.proxyContract.address);
+    expect(diff.isEmpty()).to.be.true;
+
+    // change all the previous synced values
+    await chainProxy.setA(2);
+
+    // get changed keys
+    diff = await differ.getDiffFromStorage(srcContractSimpleStorageGoerli.address, initialization.proxyContract.address);
+    const changedKeys = diff.getKeys();
+
+    // migrate changes to proxy contract
+    const migrationResult = await chainProxy.migrateChangesToProxy(changedKeys);
+    expect(migrationResult.migrationResult).to.be.true;
+    if (!migrationResult.receipt) {
+        logger.fatal('No receipt provided');
+        process.exit(-1);
+    }
+    logger.info('Gas used for updating 1 value in map with 1 value: ', migrationResult.receipt.gasUsed.toNumber());
+
+    // after update storage layouts are equal, no diffs
+    diff = await differ.getDiffFromStorage(simpleStoragePolygon.address, initialization.proxyContract.address);
+    expect(diff.isEmpty()).to.be.true;
 }
 
 main()
