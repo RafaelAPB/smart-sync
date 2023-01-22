@@ -195,9 +195,8 @@ export class TestChainProxySimpleStorage {
             proxyValues.push(ethers.utils.hexZeroPad(storageProof.value, 32));
         });
         const storageAdds: Promise<any>[] = [];
-        while (proxykeys.length > 0) {
-            storageAdds.push(this.proxyContract.addStorage(proxykeys.splice(0, KEY_VALUE_PAIR_PER_BATCH), proxyValues.splice(0, KEY_VALUE_PAIR_PER_BATCH)));
-        }
+        storageAdds.push(this.proxyContract.addStorage(proxykeys, proxyValues));
+
         try {
             await Promise.all(storageAdds);
         } catch (e) {
@@ -215,7 +214,7 @@ export class TestChainProxySimpleStorage {
         const latestProxyChainBlock = await this.targetProvider.send('eth_getBlockByNumber', ['latest', true]);
         logger.debug(`Fetching proof with params ${this.proxyContract.address}, ${keyList}, ${latestBlock.number}`);
         const proxyChainProof = await this.targetProvider.send('eth_getProof', [this.proxyContract.address, keyList, latestProxyChainBlock.number]);
-        const processedProxyChainProof = new GetProof(proxyChainProof, this.targetProvider);
+        const processedProxyChainProof = new GetProof(proxyChainProof);
         const proxyAccountProof = await processedProxyChainProof.optimizedProof(latestProxyChainBlock.stateRoot, false);
 
         //  getting encoded block header
@@ -231,10 +230,6 @@ export class TestChainProxySimpleStorage {
         const migrationValidated = await this.relayContract.getMigrationState(this.proxyContract.address);
 
         this.migrationState = migrationValidated;
-        if (!this.migrationState) {
-            logger.error('Could not migrate srcContract.');
-        }
-        
         return {
             max_mpt_depth: this.max_mpt_depth,
             min_mpt_depth: this.min_mpt_depth,
