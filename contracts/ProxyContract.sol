@@ -37,7 +37,7 @@ contract ProxyContract {
     * @dev address of the contract that is being mirrored.
     * The address in the file is a placeholder
     */
-    address internal constant LOGIC_ADDRESS = 0x5110B4b4Fea7137895d33B8a0b11330A1B2586E9;
+    address internal constant LOGIC_ADDRESS = 0x7f5c3fFD29019438e2096B538eB272eD52A80351;
 
     constructor() public {
     }
