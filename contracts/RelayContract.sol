@@ -5,7 +5,7 @@ import './ProxyContract.sol';
 import './GetProofLib.sol';
 
 contract RelayContract {
-
+    event CompareStorageRoots (bytes32 srcAccountHash, bytes32 proxyAccountHash);
     struct ProxyContractInfo {
         // The root of storage trie of the contract.
         bytes32 storageRoot;
@@ -110,6 +110,8 @@ contract RelayContract {
         getProof = GetProofLib.parseProof(proxyAccountProof);
         require(GetProofLib.verifyProof(getProof.account, getProof.accountProof, path, blockHeader.storageRoot), "Failed to verify the account proof");
         GetProofLib.Account memory proxyAccount = GetProofLib.parseAccount(getProof.account);
+
+        emit CompareStorageRoots(sourceAccount.storageHash,proxyAccount.storageHash);
 
         // compare storageRootHashes
         require(sourceAccount.storageHash == proxyAccount.storageHash, 'storageHashes of the contracts dont match');
