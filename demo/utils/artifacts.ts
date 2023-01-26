@@ -18,7 +18,9 @@ export namespace ContractArtifacts {
     export const goerliSigner = new ethers.Wallet(PRIVATE_KEY as string, goerliProvider);
     export const ethereumSigner = new ethers.Wallet(PRIVATE_KEY as string, ethereumProvider);
     export const mumbaiSigner = new ethers.Wallet(PRIVATE_KEY as string, mumbaiProvider);
-
+    
+    export const source = "mumbai";
+    export const target = "goerli"
     const sourceSigner = mumbaiSigner;
     const targetSigner = goerliSigner;
 
