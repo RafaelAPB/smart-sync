@@ -4,36 +4,25 @@ import { ethers } from 'ethers';
 import path from 'path';
 import { RelayContract } from '../src-gen/types';
 import { SimpleStorage } from '../src-gen/types/SimpleStorage';
-import { encodeBlockHeader } from '../src/chain-proxy';
 import { TxContractInteractionOptions } from '../src/cli/smart-sync';
 import DiffHandler from '../src/diffHandler/DiffHandler';
-import GetProof from '../src/proofHandler/GetProof';
 import FileHandler from '../src/utils/fileHandler';
 import { logger } from '../src/utils/logger';
-import { TestChainProxy, verifyEthGetProof } from '../test/test-utils';
 import {
     ContractArtifacts,
 } from './utils/artifacts';
-import { updateProxyContract } from './utils/initialize-contracts';
 import { TestChainProxySimpleStorage } from './utils/test-chain-proxy-simple-storage';
 
 require('dotenv').config();
 
-logger.setSettings({ minLevel: 'info', name: 'demo' });
+logger.setSettings({ minLevel: 'debug', name: 'demo' });
 
 const {
-    PRIVATE_KEY, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_LOGIC_CONTRACT, DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_SRC_CONTRACT, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, RPC_URL_GOERLI, RPC_URL_MUMBAI, GAS_LIMIT, RPC_LOCALHOST_ORIGIN, RPC_LOCALHOST_TARGET, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE, DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE,
+    DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_LOGIC_CONTRACT, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI,
 } = process.env;
-
-const goerliProvider = new ethers.providers.JsonRpcProvider(RPC_URL_GOERLI);
-const polygonProvider = new ethers.providers.JsonRpcProvider(RPC_URL_MUMBAI);
-
-const goerliSigner = new ethers.Wallet(PRIVATE_KEY as string, goerliProvider);
-const polygonSigner = new ethers.Wallet(PRIVATE_KEY as string, polygonProvider);
-const MAX_VALUE = 1000000;
-
-const differ = new DiffHandler(polygonProvider, goerliProvider);
+const differ = new DiffHandler(ContractArtifacts.mumbaiProvider, ContractArtifacts.goerliProvider);
 const configPath = path.join(__dirname, './config/demo-config.json');
+
 async function main() {
     const fh = new FileHandler(configPath);
     const chainConfigs = fh.getJSON<TxContractInteractionOptions>();
@@ -42,57 +31,46 @@ async function main() {
         process.exit(-1);
     }
     // STEP: Deploy/Retrieve Base Contracts //
+    logger.warn('Do not forget to change demo-config.json if src or target chains change');
 
-    // Base contracts SyncCandidate
-    // const srcContract = new ethers.Contract(
-    //     DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE as string,
-    //     abiSyncCandidate,
-    //     goerliSigner,
-    // );
-    // logger.info(`Using srcAddress deployed at ${srcContract.address}`);
-
-    // const logicContract = new ethers.Contract(
-    //     DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE as string,
-    //     abiSyncCandidate,
-    //     goerliSigner,
-    // );
-    // logger.info(`Using logicContract deployed at ${logicContract.address}`);
-
-    // Base contracts are simple storage contracts
-  
-    // Base contracts are simple storage contracts
-    const logicContractSimpleStorageGoerli = new ethers.Contract(
+    // no need to check value from the logic contract (target chain), because only the proxy is updated
+    const logicContractSimpleStorageGoerli = <SimpleStorage> new ethers.Contract(
         DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_LOGIC_CONTRACT as string,
         ContractArtifacts.abiSimpleStorage,
-        goerliSigner,
+        ContractArtifacts.goerliSigner,
     );
-
-    const srcContractSimpleStoragePolygon = new ethers.Contract(
+    
+    // value from the source chain is relevant as we are replicating it
+    const srcContractSimpleStoragePolygon = <SimpleStorage> new ethers.Contract(
         DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI as string,
         ContractArtifacts.abiSimpleStorage,
-        polygonSigner,
+        ContractArtifacts.mumbaiSigner,
     );
+    const value = await srcContractSimpleStoragePolygon.getA();
+    logger.debug('Value of logic source contract is:', value);
+    
     // first number from simple storage smart contract
     const paddedSlot = ethers.utils.hexZeroPad('0x00', 32);
     const keyList = [paddedSlot];
-  
-    const relayGoerli = new ethers.Contract(
+
+    const relayGoerli = <RelayContract> new ethers.Contract(
         DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI as string,
         ContractArtifacts.abiRelay,
-        goerliSigner,
+        ContractArtifacts.goerliSigner,
     );
+
     logger.info(`Using relay contract deployed at ${relayGoerli.address}`);
     // STEP: Deploy / Retrieve Secondary Contract (State Proxy) //
 
     const chainProxy = new TestChainProxySimpleStorage(
-        srcContractSimpleStoragePolygon as SimpleStorage,
-        logicContractSimpleStorageGoerli as SimpleStorage,
+        srcContractSimpleStoragePolygon,
+        logicContractSimpleStorageGoerli,
         chainConfigs,
-        polygonSigner,
-        goerliSigner,
-        relayGoerli as RelayContract,
-        polygonProvider,
-        goerliProvider,
+        ContractArtifacts.mumbaiSigner,
+        ContractArtifacts.goerliSigner,
+        relayGoerli,
+        ContractArtifacts.mumbaiProvider,
+        ContractArtifacts.goerliProvider,
     );
 
     chainProxy.initKeyList(keyList);
@@ -108,14 +86,14 @@ async function main() {
     const diff = await differ.getDiffFromStorage(srcContractSimpleStoragePolygon.address, initialization.proxyContract.address);
     expect(diff.isEmpty()).to.be.true;
 
-    // change all the previous synced values
+    // change the previous synced values from the source contract
     await chainProxy.setA(0);
 
     // get changed keys
     const diffAfer = await differ.getDiffFromStorage(srcContractSimpleStoragePolygon.address, initialization.proxyContract.address);
     const changedKeys = diffAfer.getKeys();
 
-    // migrate changes to proxy contract
+    // migrate changes to proxy contract (not proxy contract is initialized)
     const migrationResult = await chainProxy.migrateChangesToProxy(changedKeys);
     expect(migrationResult.migrationResult).to.be.true;
     if (!migrationResult.receipt) {

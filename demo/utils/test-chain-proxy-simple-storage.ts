@@ -291,7 +291,7 @@ export class TestChainProxySimpleStorage {
     }
 
     async setA(num: number) {
-        await this.setA(num);
+        await this.srcContract.setA(num);
     }
 
     async migrateChangesToProxy(changedKeys: Array<BigNumberish>): Promise<MigrationResult> {
@@ -320,7 +320,7 @@ export class TestChainProxySimpleStorage {
             if (maxValueMptDept < storageProof.proof.length) maxValueMptDept = storageProof.proof.length;
         });
 
-        const rlpProof = await changedKeysProof.optimizedProof(latestBlock.stateRoot);
+        const rlpProof = await changedKeysProof.optimizedProof(latestBlock.stateRoot, false);
         await this.relayContract.addBlock(latestBlock.stateRoot, latestBlock.number);
 
         // update the proxy storage
