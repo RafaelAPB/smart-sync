@@ -34,26 +34,29 @@ async function main() {
     logger.warn('Do not forget to change demo-config.json if src or target chains change');
 
     // no need to check value from the logic contract (target chain), because only the proxy is updated
-    const contract_source_chain_source = <SimpleStorage> new ethers.Contract(
+    const contractSourceChainSource = <SimpleStorage> new ethers.Contract(
         CONTRACT_SOURCECHAIN_SOURCE as string,
         ContractArtifacts.abiSimpleStorage,
         ContractArtifacts.sourceSigner,
     );
     
     // value from the source chain is relevant as we are replicating it
-    const contract_target_chain_logic = <SimpleStorage> new ethers.Contract(
+    const contractTargetChainLogic = <SimpleStorage> new ethers.Contract(
         CONTRACT_TARGETCHAIN_LOGIC as string,
         ContractArtifacts.abiSimpleStorage,
         ContractArtifacts.targetSigner,
     );
 
+
+
     // should be 0 by default, but after first iteration will change
-    const value = await contract_source_chain_source.getA();
+    const value = await contractSourceChainSource.getA();
     logger.debug('Value of logic source contract is:', value);
     
     // first number from simple storage smart contract
     const paddedSlot = ethers.utils.hexZeroPad('0x00', 32);
     const keyList = [paddedSlot];
+
 
     const relayGoerli = <RelayContract> new ethers.Contract(
         CONTRACT_TARGETCHAIN_RELAY as string,
@@ -65,8 +68,8 @@ async function main() {
     // STEP: Deploy / Retrieve Secondary Contract (State Proxy) //
 
     const chainProxy = new TestChainProxySimpleStorage(
-        contract_source_chain_source,
-        contract_target_chain_logic,
+        contractSourceChainSource,
+        contractTargetChainLogic,
         chainConfigs,
         ContractArtifacts.sourceSigner,
         ContractArtifacts.targetSigner,
@@ -77,12 +80,22 @@ async function main() {
 
     chainProxy.initKeyList(keyList);
 
-    logger.debug(`srcContractAddress: ${contract_source_chain_source.address}, relayContract: ${relayGoerli.address}`);
+    // await chainProxy.setA(0);
+
+    const latestBlockSource = await ContractArtifacts.sourceProvider.send('eth_getBlockByNumber', ['latest', true]);
+    const sourceProof = await ContractArtifacts.sourceProvider.send('eth_getProof', [contractSourceChainSource.address, keyList, latestBlockSource.number]);
     
-    //await chainProxy.setA(1337);
+    const latestBlockTarget = await ContractArtifacts.targetProvider.send('eth_getBlockByNumber', ['latest', true]);
+    const targetProof = await ContractArtifacts.targetProvider.send('eth_getProof', [contractTargetChainLogic.address, keyList, latestBlockTarget.number]);
+    
+    logger.debug(`proofs: ${sourceProof == targetProof}`);
+
+
+    logger.debug(`srcContractAddress: ${contractSourceChainSource.address}, relayContract: ${relayGoerli.address}`);
+    
     // should be 1337 or 3
     
-    let tempDiff = await differ.getDiffFromStorage(contract_source_chain_source.address, contract_target_chain_logic.address, 'latest', 'latest', keyList[0], keyList[0]);
+    let tempDiff = await differ.getDiffFromStorage(contractSourceChainSource.address, contractTargetChainLogic.address, 'latest', 'latest', keyList[0], keyList[0]);
     logger.debug(`tempDiff src logic: ${JSON.stringify(tempDiff)}`);
 
 
@@ -96,7 +109,7 @@ async function main() {
     expect(initialization.migrationState).to.be.true;
 
     // after update storage layouts are equal, no diffs
-    const diffFinal = await differ.getDiffFromStorage(contract_source_chain_source.address, initialization.proxyContract.address, 'latest', 'latest', keyList[0], keyList[0]);
+    const diffFinal = await differ.getDiffFromStorage(contractSourceChainSource.address, initialization.proxyContract.address, 'latest', 'latest', keyList[0], keyList[0]);
     logger.debug(`diffFinal: ${JSON.stringify(diffFinal)}`);
     expect(diffFinal.isEmpty()).to.be.true;
 }

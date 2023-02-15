@@ -14,6 +14,8 @@ export namespace ContractArtifacts {
     export const goerliProvider = new ethers.providers.JsonRpcProvider(RPC_URL_GOERLI);
     export const ethereumProvider = new ethers.providers.JsonRpcProvider(RPC_URL_ETH_MAINNET);
     export const mumbaiProvider = new ethers.providers.JsonRpcProvider(RPC_URL_MUMBAI);
+    export const sourceProvider = goerliProvider;
+    export const targetProvider = mumbaiProvider;
 
     export const goerliSigner = new ethers.Wallet(PRIVATE_KEY as string, goerliProvider);
     export const ethereumSigner = new ethers.Wallet(PRIVATE_KEY as string, ethereumProvider);
