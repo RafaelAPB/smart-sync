@@ -84,9 +84,13 @@ async function main() {
         ContractArtifacts.goerliSigner,
     );
 
-    await chainProxy.setA(3);
-    const tempDiff = await differ.getDiffFromStorage(srcContractSimpleStoragePolygon.address, proxyContract.address, 'latest', 'latest', keyList[0], keyList[0]);
+    // should be 1337 or 3
+    let tempDiff = await differ.getDiffFromStorage(srcContractSimpleStoragePolygon.address, proxyContract.address, 'latest', 'latest', keyList[0], keyList[0]);
     logger.debug(`tempDiff: ${JSON.stringify(tempDiff)}`);
+
+    await chainProxy.setA(1337);
+    tempDiff = await differ.getDiffFromStorage(srcContractSimpleStoragePolygon.address, proxyContract.address, 'latest', 'latest', keyList[0], keyList[0]);
+    logger.debug(`tempDiff after set A from polygon to 3: ${JSON.stringify(tempDiff)}`);
 
 
 
