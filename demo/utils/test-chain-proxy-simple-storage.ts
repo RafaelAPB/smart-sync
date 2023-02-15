@@ -14,7 +14,7 @@ import {
 } from '../../src/utils/utils';
 import GetProof, { encodeAccount, formatProofNodes } from '../../src/proofHandler/GetProof';
 import { Account, StorageProof } from '../../src/proofHandler/Types';
-import { encodeBlockHeader } from '../../src/chain-proxy';
+import { ChainProxy, encodeBlockHeader } from '../../src/chain-proxy';
 import { TxContractInteractionOptions } from '../../src/cli/smart-sync';
 import { ContractArtifacts } from './artifacts';
 import { updateProxyContract } from './initialize-contracts';
@@ -162,7 +162,6 @@ export class TestChainProxySimpleStorage {
 
     async initializeProxyContract(): Promise<InitializationResult> {
         const { keyList } = this;
-        // const keys = await getAllKeys(this.srcContract.address, this.srcProvider);
 
         const latestBlock = await this.srcProvider.send('eth_getBlockByNumber', ['latest', true]);
         // create a proof of the source contract's storage
@@ -211,10 +210,9 @@ export class TestChainProxySimpleStorage {
             proxyValues.push(ethers.utils.hexZeroPad(storageProof.value, 32));
         });
         const storageAdds: Promise<any>[] = [];
-        storageAdds.push(this.proxyContract.addStorage(proxykeys, proxyValues));
+        storageAdds.push(this.proxyContract.addStorage(proxykeys, proxyValues, { gasLimit: this.httpConfig.gasLimit }));
 
         try {
-            if (proxykeys && proxyValues)
             await Promise.all(storageAdds);
         } catch (e) {
             logger.error('Could not insert multiple values in srcContract');
