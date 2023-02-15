@@ -17,10 +17,21 @@ const {
 logger.setSettings({ minLevel: 'info', name: 'demo-utils:deploy-contracts' });
 
 
-async function deploySimpleStorage() {
+async function deploySimpleStorageSource() {
     logger.info(`Deploying Simple Storage ${ContractArtifacts.source}`);
     try {
         const SimpleStorageContract = await ContractArtifacts.SimpleStorageSource.deploy();
+        await SimpleStorageContract.deployed();
+        logger.info(`Contract SimpleStorageContract deployed at: ${SimpleStorageContract.address}}`);
+    } catch (error) {
+        logger.error(error);
+    }
+}
+
+async function deploySimpleStorageTarget() {
+    logger.info(`Deploying Simple Storage ${ContractArtifacts.target}`);
+    try {
+        const SimpleStorageContract = await ContractArtifacts.SimpleStorageTarget.deploy();
         await SimpleStorageContract.deployed();
         logger.info(`Contract SimpleStorageContract deployed at: ${SimpleStorageContract.address}}`);
     } catch (error) {
@@ -94,7 +105,7 @@ async function compileAndDeployProxyContract(): Promise<Contract | undefined> {
 }
 
 async function main() {
-     await deploySimpleStorage();
+     await deployRelay();
 }
 
 main()

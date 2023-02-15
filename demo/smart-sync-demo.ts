@@ -2,7 +2,7 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import path from 'path';
-import { RelayContract } from '../src-gen/types';
+import { ProxyContract, RelayContract } from '../src-gen/types';
 import { SimpleStorage } from '../src-gen/types/SimpleStorage';
 import { TxContractInteractionOptions } from '../src/cli/smart-sync';
 import DiffHandler from '../src/diffHandler/DiffHandler';
@@ -18,7 +18,7 @@ require('dotenv').config();
 logger.setSettings({ minLevel: 'debug', name: 'demo' });
 
 const {
-    DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_LOGIC_CONTRACT, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI,
+    DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_LOGIC_CONTRACT, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI,
 } = process.env;
 const differ = new DiffHandler(ContractArtifacts.mumbaiProvider, ContractArtifacts.goerliProvider);
 const configPath = path.join(__dirname, './config/demo-config.json');
@@ -76,34 +76,29 @@ async function main() {
     chainProxy.initKeyList(keyList);
 
     logger.debug(`srcContractAddress: ${srcContractSimpleStoragePolygon.address}, relayContract: ${relayGoerli.address}`);
+
+    // Initialize or retrieve proxy contract
+    const proxyContract = <ProxyContract> new ethers.Contract(
+        DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI as string,
+        ContractArtifacts.abiProxyContract,
+        ContractArtifacts.goerliSigner,
+    );
+
+    await chainProxy.setA(3);
+    const tempDiff = await differ.getDiffFromStorage(srcContractSimpleStoragePolygon.address, proxyContract.address, 'latest', 'latest', keyList[0], keyList[0]);
+    logger.debug(`tempDiff: ${JSON.stringify(tempDiff)}`);
+
+
+
     const initialization = await chainProxy.initializeProxyContract();
     if (!initialization) {
         throw new Error();
     }
     expect(initialization.migrationState).to.be.true;
 
-    // The storage diff between `srcContract` and `proxyContract` comes up empty: both storage layouts are the same
-    const diff = await differ.getDiffFromStorage(srcContractSimpleStoragePolygon.address, initialization.proxyContract.address);
-    expect(diff.isEmpty()).to.be.true;
-
-    // change the previous synced values from the source contract
-    await chainProxy.setA(0);
-
-    // get changed keys
-    const diffAfer = await differ.getDiffFromStorage(srcContractSimpleStoragePolygon.address, initialization.proxyContract.address);
-    const changedKeys = diffAfer.getKeys();
-
-    // migrate changes to proxy contract (not proxy contract is initialized)
-    const migrationResult = await chainProxy.migrateChangesToProxy(changedKeys);
-    expect(migrationResult.migrationResult).to.be.true;
-    if (!migrationResult.receipt) {
-        logger.fatal('No receipt provided');
-        process.exit(-1);
-    }
-    logger.info('Gas used for updating 1 value in map with 1 value: ', migrationResult.receipt.gasUsed.toNumber());
-
     // after update storage layouts are equal, no diffs
-    const diffFinal = await differ.getDiffFromStorage(srcContractSimpleStoragePolygon.address, initialization.proxyContract.address);
+    const diffFinal = await differ.getDiffFromStorage(srcContractSimpleStoragePolygon.address, initialization.proxyContract.address, 'latest', 'latest', keyList[0], keyList[0]);
+    logger.debug(`diffFinal: ${JSON.stringify(diffFinal)}`);
     expect(diffFinal.isEmpty()).to.be.true;
 }
 

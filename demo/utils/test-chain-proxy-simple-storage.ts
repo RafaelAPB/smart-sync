@@ -4,7 +4,7 @@ import {
     BigNumberish, ethers, Wallet,
 } from 'ethers';
 import { Trie } from 'merkle-patricia-tree/dist/baseTrie';
-import { RelayContract, SimpleStorage } from '../../src-gen/types';
+import { ProxyContract, RelayContract, SimpleStorage } from '../../src-gen/types';
 import { PROXY_INTERFACE } from '../../src/config';
 import ProxyContractBuilder from '../../src/utils/proxy-contract-builder';
 import DiffHandler from '../../src/diffHandler/DiffHandler';
@@ -16,6 +16,12 @@ import GetProof, { encodeAccount, formatProofNodes } from '../../src/proofHandle
 import { Account, StorageProof } from '../../src/proofHandler/Types';
 import { encodeBlockHeader } from '../../src/chain-proxy';
 import { TxContractInteractionOptions } from '../../src/cli/smart-sync';
+import { ContractArtifacts } from './artifacts';
+import { updateProxyContract } from './initialize-contracts';
+
+const {
+    DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_LOGIC_CONTRACT, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI,
+} = process.env;
 
 const KEY_VALUE_PAIR_PER_BATCH = 100;
 
@@ -176,6 +182,9 @@ export class TestChainProxySimpleStorage {
 
         await this.relayContract.addBlock(latestBlock.stateRoot, latestBlock.number);
 
+
+        // Initialize or retrieve proxy contract
+
         const compiledProxy = await ProxyContractBuilder.compiledAbiAndBytecode(this.relayContract.address, this.logicContract.address, this.srcContract.address);
         if (compiledProxy.error) {
             logger.error('Could not get the compiled proxy...');
@@ -183,8 +192,15 @@ export class TestChainProxySimpleStorage {
         }
 
         // deploy the proxy with the state of the `srcContract`
-        const proxyFactory = new ethers.ContractFactory(PROXY_INTERFACE, compiledProxy.bytecode, this.targetDeployer);
-        this.proxyContract = await proxyFactory.deploy();
+        // const proxyFactory = new ethers.ContractFactory(PROXY_INTERFACE, compiledProxy.bytecode, this.targetDeployer);
+        // this.proxyContract = await proxyFactory.deploy();
+
+        this.proxyContract = <ProxyContract> new ethers.Contract(
+            DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI as string,
+            ContractArtifacts.abiProxyContract,
+            ContractArtifacts.goerliSigner,
+        );
+
         logger.debug('Updated proxy contract deployed at:', this.proxyContract.address);
         // migrate storage
         logger.debug('migrating storage');
@@ -215,6 +231,7 @@ export class TestChainProxySimpleStorage {
         logger.debug(`Fetching proof with params ${this.proxyContract.address}, ${keyList}, ${latestBlock.number}`);
         const proxyChainProof = await this.targetProvider.send('eth_getProof', [this.proxyContract.address, keyList, latestProxyChainBlock.number]);
         const processedProxyChainProof = new GetProof(proxyChainProof);
+
         const proxyAccountProof = await processedProxyChainProof.optimizedProof(latestProxyChainBlock.stateRoot, false);
 
         //  getting encoded block header
@@ -225,7 +242,7 @@ export class TestChainProxySimpleStorage {
         logger.trace(receipt);
         const gasUsedForTx = receipt.gasUsed.toNumber();
         logger.debug(`Gas used for verifying contract migration: ${gasUsedForTx}`);
-    
+
         //  validating
         const migrationValidated = await this.relayContract.getMigrationState(this.proxyContract.address);
 
@@ -294,8 +311,8 @@ export class TestChainProxySimpleStorage {
         await this.srcContract.setA(num);
     }
 
-    async migrateChangesToProxy(changedKeys: Array<BigNumberish>): Promise<MigrationResult> {
-        if (!this.migrationState) {
+    async migrateChangesToProxy(changedKeys: Array<BigNumberish>, isDeployed?: boolean): Promise<MigrationResult> {
+        if (!this.migrationState && !isDeployed) {
             logger.error('Proxy contract is not initialized yet.');
             return { migrationResult: false };
         }
@@ -312,7 +329,7 @@ export class TestChainProxySimpleStorage {
         const latestBlock = await this.srcProvider.send('eth_getBlockByNumber', ['latest', true]);
 
         // create a proof of the source contract's storage for all the changed keys
-        const changedKeysProof = new GetProof(await this.srcProvider.send('eth_getProof', [this.srcContract.address, changedKeys]));
+        const changedKeysProof = new GetProof(await this.srcProvider.send('eth_getProof', [this.srcContract.address, this.keyList, latestBlock.number]));
 
         // get depth of value
         let maxValueMptDept = 0;
