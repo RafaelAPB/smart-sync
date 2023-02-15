@@ -105,7 +105,7 @@ async function compileAndDeployProxyContract(): Promise<Contract | undefined> {
 }
 
 async function main() {
-     await deployRelay();
+    // await deployRelay();
 }
 
 main()

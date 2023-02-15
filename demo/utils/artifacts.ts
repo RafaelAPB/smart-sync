@@ -19,10 +19,10 @@ export namespace ContractArtifacts {
     export const ethereumSigner = new ethers.Wallet(PRIVATE_KEY as string, ethereumProvider);
     export const mumbaiSigner = new ethers.Wallet(PRIVATE_KEY as string, mumbaiProvider);
     
-    export const source = "mumbai";
-    export const target = "goerli"
-    const sourceSigner = mumbaiSigner;
-    const targetSigner = goerliSigner;
+    export const source = "goerli";
+    export const target = "mumbai"
+    export const sourceSigner = goerliSigner;
+    export const targetSigner = mumbaiSigner;
 
     export const abiSimpleStorage = require('../../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json').abi;
     export const bytecodeSimpleStorage = require('../../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json').bytecode;

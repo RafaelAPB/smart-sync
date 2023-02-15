@@ -20,7 +20,7 @@ import { ContractArtifacts } from './artifacts';
 import { updateProxyContract } from './initialize-contracts';
 
 const {
-    DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_LOGIC_CONTRACT, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI,
+    CONTRACT_TARGETCHAIN_PROXY, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_LOGIC_CONTRACT, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI,
 } = process.env;
 
 const KEY_VALUE_PAIR_PER_BATCH = 100;
@@ -196,9 +196,9 @@ export class TestChainProxySimpleStorage {
         // this.proxyContract = await proxyFactory.deploy();
 
         this.proxyContract = <ProxyContract> new ethers.Contract(
-            DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI as string,
+            CONTRACT_TARGETCHAIN_PROXY as string,
             ContractArtifacts.abiProxyContract,
-            ContractArtifacts.goerliSigner,
+            ContractArtifacts.targetSigner,
         );
 
         logger.debug('Updated proxy contract deployed at:', this.proxyContract.address);
@@ -214,6 +214,7 @@ export class TestChainProxySimpleStorage {
         storageAdds.push(this.proxyContract.addStorage(proxykeys, proxyValues));
 
         try {
+            if (proxykeys && proxyValues)
             await Promise.all(storageAdds);
         } catch (e) {
             logger.error('Could not insert multiple values in srcContract');
