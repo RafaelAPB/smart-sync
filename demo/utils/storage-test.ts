@@ -18,7 +18,7 @@ async function main() {
     const differ = new DiffHandler(ContractArtifacts.sourceProvider, ContractArtifacts.targetProvider);
 
     const contractSourceChainSource = <SimpleStorage> new ethers.Contract(
-        CONTRACT_SOURCECHAIN_SOURCE_UNUSED as string,
+        CONTRACT_SOURCECHAIN_SOURCE as string,
         ContractArtifacts.abiSimpleStorage,
         ContractArtifacts.sourceSigner,
     );

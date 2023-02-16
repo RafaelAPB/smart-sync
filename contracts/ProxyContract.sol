@@ -25,7 +25,7 @@ contract ProxyContract {
     * @dev address of the deployed relay contract.
     * The address in the file is a placeholder
     */
-    address internal constant RELAY_ADDRESS = 0x068ef3095Bb27E4bA43953A42e34eB02D577c027;
+    address internal constant RELAY_ADDRESS = 0x1576f6518D9CF8725e60c730fEb4b08d69A8f5cE;
 
     /**
     * @dev address of the contract that is being mirrored.
@@ -37,7 +37,7 @@ contract ProxyContract {
     * @dev address of the contract that is being mirrored.
     * The address in the file is a placeholder
     */
-    address internal constant LOGIC_ADDRESS = 0x7f5c3fFD29019438e2096B538eB272eD52A80351;
+    address internal constant LOGIC_ADDRESS = 0x0cb4E7F9C9111e4b6B5DA7B0beA09380DF8054De;
 
     constructor() public {
     }

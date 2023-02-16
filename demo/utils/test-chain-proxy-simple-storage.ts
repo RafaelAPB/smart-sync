@@ -191,14 +191,14 @@ export class TestChainProxySimpleStorage {
         }
 
         // deploy the proxy with the state of the `srcContract`
-        // const proxyFactory = new ethers.ContractFactory(PROXY_INTERFACE, compiledProxy.bytecode, this.targetDeployer);
-        // this.proxyContract = await proxyFactory.deploy();
+        const proxyFactory = new ethers.ContractFactory(PROXY_INTERFACE, compiledProxy.bytecode, this.targetDeployer);
+        this.proxyContract = await proxyFactory.deploy();
 
-        this.proxyContract = <ProxyContract> new ethers.Contract(
-            CONTRACT_TARGETCHAIN_PROXY as string,
-            ContractArtifacts.abiProxyContract,
-            ContractArtifacts.targetSigner,
-        );
+        // this.proxyContract = <ProxyContract> new ethers.Contract(
+        //     CONTRACT_TARGETCHAIN_PROXY as string,
+        //     ContractArtifacts.abiProxyContract,
+        //     ContractArtifacts.targetSigner,
+        // );
 
         logger.debug('Updated proxy contract deployed at:', this.proxyContract.address);
         // migrate storage

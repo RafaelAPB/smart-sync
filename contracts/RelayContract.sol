@@ -101,14 +101,14 @@ contract RelayContract {
         address sourceAddress = proxyContract.getSourceAddress();
         bytes memory path = GetProofLib.encodedAddress(sourceAddress);
         GetProofLib.GetProof memory getProof = GetProofLib.parseProof(sourceAccountProof);
-        require(GetProofLib.verifyProof(getProof.account, getProof.accountProof, path, srcContractStateRoots[srcChainBlockNumber]), "Failed to verify the account proof");
+        require(GetProofLib.verifyProof(getProof.account, getProof.accountProof, path, srcContractStateRoots[srcChainBlockNumber]), "Failed to verify the source account proof");
         GetProofLib.Account memory sourceAccount = GetProofLib.parseAccount(getProof.account);
 
         // verify proxyAccountProof
         // validate that the proof was obtained for the source contract and the account's storage is part of the current state
         path = GetProofLib.encodedAddress(proxyAddress);
         getProof = GetProofLib.parseProof(proxyAccountProof);
-        require(GetProofLib.verifyProof(getProof.account, getProof.accountProof, path, blockHeader.storageRoot), "Failed to verify the account proof");
+        require(GetProofLib.verifyProof(getProof.account, getProof.accountProof, path, blockHeader.storageRoot), "Failed to verify the proxy account proof");
         GetProofLib.Account memory proxyAccount = GetProofLib.parseAccount(getProof.account);
 
         emit CompareStorageRoots(sourceAccount.storageHash,proxyAccount.storageHash);
