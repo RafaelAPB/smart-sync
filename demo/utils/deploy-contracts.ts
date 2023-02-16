@@ -9,7 +9,7 @@ import { ContractArtifacts } from './artifacts';
 require('dotenv').config();
 
 const {
-     DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI,  DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_SRC_CONTRACT
+     DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI,  CONTRACT_TARGETCHAIN_LOGIC,CONTRACT_TARGETCHAIN_RELAY,CONTRACT_SOURCECHAIN_SOURCE, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_SRC_CONTRACT
 } = process.env;
 
 
@@ -82,19 +82,19 @@ async function deploySyncCandidate() {
     }
 }
 
-async function compileAndDeployProxyContract(): Promise<Contract | undefined> {
+async function compileAndDeployProxyContractTarget(): Promise<Contract | undefined> {
     try {
         logger.info('Compiling ProxyContract');
         // DEPLOYED_CONTRACT_ADDRESS_LOGIC_CONTRACT_SYNC_CANDIDATE and DEPLOYED_CONTRACT_ADDRESS_SRC_CONTRACT_SYNC_CANDIDATE could be used
-        if (!DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI || !DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI || !DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_SRC_CONTRACT) {
+        if (!CONTRACT_SOURCECHAIN_SOURCE || !CONTRACT_TARGETCHAIN_RELAY || !CONTRACT_TARGETCHAIN_LOGIC) {
             throw new Error('Contracts need to be deployed and set up in the .env file');
         }
-        const compiledProxy = await ProxyContractBuilder.compiledAbiAndBytecode(DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI, DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_SRC_CONTRACT);
+        const compiledProxy = await ProxyContractBuilder.compiledAbiAndBytecode(CONTRACT_TARGETCHAIN_RELAY, CONTRACT_TARGETCHAIN_LOGIC, CONTRACT_SOURCECHAIN_SOURCE);
         if (compiledProxy.error) {
             throw Error('Could not compile proxy');
         }
-        logger.info(`Deploying Proxy ${ContractArtifacts.target} instantiated with Relay: ${DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI}, Source address: ${DEPLOYED_CONTRACT_ADDRESS_STORAGE_MUMBAI}, logic address: ${DEPLOYED_CONTRACT_ADDRESS_STORAGE_GOERLI_SRC_CONTRACT}`);
-        const proxyFactory = new ethers.ContractFactory(PROXY_INTERFACE, compiledProxy.bytecode, ContractArtifacts.goerliSigner);
+        logger.info(`Deploying Proxy ${ContractArtifacts.target} instantiated with Relay: ${CONTRACT_TARGETCHAIN_RELAY}, Source address: ${CONTRACT_SOURCECHAIN_SOURCE}, logic address: ${CONTRACT_TARGETCHAIN_LOGIC}`);
+        const proxyFactory = new ethers.ContractFactory(PROXY_INTERFACE, compiledProxy.bytecode, ContractArtifacts.targetSigner);
         const proxyContract: Contract = await proxyFactory.deploy();
         logger.info(`Contract ProxyContract deployed at: ${proxyContract.address}`);
         return proxyContract || undefined;
@@ -105,7 +105,10 @@ async function compileAndDeployProxyContract(): Promise<Contract | undefined> {
 }
 
 async function main() {
-    // await deployRelay();
+    await deploySimpleStorageSource();
+    await deploySimpleStorageTarget();
+    await deployRelay();
+    await compileAndDeployProxyContractTarget();
 }
 
 main()

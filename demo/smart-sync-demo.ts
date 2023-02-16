@@ -18,9 +18,9 @@ require('dotenv').config();
 logger.setSettings({ minLevel: 'debug', name: 'demo' });
 
 const {
-    DEPLOYED_CONTRACT_ADDRESS_PROXY_GOERLI, CONTRACT_SOURCECHAIN_SOURCE, CONTRACT_TARGETCHAIN_LOGIC, CONTRACT_TARGETCHAIN_RELAY, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI,
+    CONTRACT_TARGETCHAIN_PROXY, CONTRACT_SOURCECHAIN_SOURCE, CONTRACT_TARGETCHAIN_LOGIC, CONTRACT_TARGETCHAIN_RELAY, DEPLOYED_CONTRACT_ADDRESS_RELAY_GOERLI,
 } = process.env;
-const differ = new DiffHandler(ContractArtifacts.mumbaiProvider, ContractArtifacts.goerliProvider);
+const differ = new DiffHandler(ContractArtifacts.sourceProvider, ContractArtifacts.targetProvider);
 const configPath = path.join(__dirname, './config/demo-config.json');
 
 async function main() {
@@ -39,7 +39,7 @@ async function main() {
         ContractArtifacts.abiSimpleStorage,
         ContractArtifacts.sourceSigner,
     );
-    
+
     // value from the source chain is relevant as we are replicating it
     const contractTargetChainLogic = <SimpleStorage> new ethers.Contract(
         CONTRACT_TARGETCHAIN_LOGIC as string,
@@ -47,24 +47,21 @@ async function main() {
         ContractArtifacts.targetSigner,
     );
 
-
-
     // should be 0 by default, but after first iteration will change
     const value = await contractSourceChainSource.getA();
     logger.debug('Value of logic source contract is:', value);
-    
+
     // first number from simple storage smart contract
     const paddedSlot = ethers.utils.hexZeroPad('0x00', 32);
     const keyList = [paddedSlot];
 
-
-    const relayGoerli = <RelayContract> new ethers.Contract(
+    const contractTargetChainRelay = <RelayContract> new ethers.Contract(
         CONTRACT_TARGETCHAIN_RELAY as string,
         ContractArtifacts.abiRelay,
         ContractArtifacts.targetSigner,
     );
 
-    logger.info(`Using relay contract deployed at ${relayGoerli.address}`);
+    logger.info(`Using relay contract deployed at ${contractTargetChainRelay.address}`);
     // STEP: Deploy / Retrieve Secondary Contract (State Proxy) //
 
     const chainProxy = new TestChainProxySimpleStorage(
@@ -73,34 +70,22 @@ async function main() {
         chainConfigs,
         ContractArtifacts.sourceSigner,
         ContractArtifacts.targetSigner,
-        relayGoerli,
+        contractTargetChainRelay,
         ContractArtifacts.goerliProvider,
         ContractArtifacts.mumbaiProvider,
     );
 
     chainProxy.initKeyList(keyList);
 
-    // await chainProxy.setA(0);
+    // await chainProxy.setA(1337);
+    // await new Promise((resolve) => setTimeout(resolve, 10000));
 
-    const latestBlockSource = await ContractArtifacts.sourceProvider.send('eth_getBlockByNumber', ['latest', true]);
-    const sourceProof = await ContractArtifacts.sourceProvider.send('eth_getProof', [contractSourceChainSource.address, keyList, latestBlockSource.number]);
-    
-    const latestBlockTarget = await ContractArtifacts.targetProvider.send('eth_getBlockByNumber', ['latest', true]);
-    const targetProof = await ContractArtifacts.targetProvider.send('eth_getProof', [contractTargetChainLogic.address, keyList, latestBlockTarget.number]);
-    
-    logger.debug(`proofs: ${sourceProof == targetProof}`);
+    logger.debug(`srcContractAddress: ${contractSourceChainSource.address}, relayContract: ${contractTargetChainRelay.address}`);
 
-
-    logger.debug(`srcContractAddress: ${contractSourceChainSource.address}, relayContract: ${relayGoerli.address}`);
-    
     // should be 1337 or 3
-    
-    let tempDiff = await differ.getDiffFromStorage(contractSourceChainSource.address, contractTargetChainLogic.address, 'latest', 'latest', keyList[0], keyList[0]);
+
+    const tempDiff = await differ.getDiffFromStorage(contractSourceChainSource.address, contractTargetChainLogic.address, 'latest', 'latest', keyList[0], keyList[0]);
     logger.debug(`tempDiff src logic: ${JSON.stringify(tempDiff)}`);
-
-
-
-
 
     const initialization = await chainProxy.initializeProxyContract();
     if (!initialization) {
