@@ -77,15 +77,19 @@ async function main() {
 
     chainProxy.initKeyList(keyList);
 
-    // await chainProxy.setA(1337);
-    // await new Promise((resolve) => setTimeout(resolve, 10000));
 
-    logger.debug(`srcContractAddress: ${contractSourceChainSource.address}, relayContract: ${contractTargetChainRelay.address}`);
+    const originalDiff = await differ.getDiffFromStorage(contractSourceChainSource.address, CONTRACT_TARGETCHAIN_PROXY, 'latest', 'latest', keyList[0], keyList[0]);
+    logger.debug(`originalDiff src logic x proxy before set A: ${JSON.stringify(originalDiff)}`);
 
-    // should be 1337 or 3
 
-    const tempDiff = await differ.getDiffFromStorage(contractSourceChainSource.address, contractTargetChainLogic.address, 'latest', 'latest', keyList[0], keyList[0]);
-    logger.debug(`tempDiff src logic: ${JSON.stringify(tempDiff)}`);
+    let random_value = Math.floor(Math.random() * 1000);
+    logger.debug(`Setting A from logic contract to: ${random_value}`);
+    await chainProxy.setA(random_value);
+    await new Promise((resolve) => setTimeout(resolve, 20000));
+    
+    const tempDiff = await differ.getDiffFromStorage(contractSourceChainSource.address, CONTRACT_TARGETCHAIN_PROXY, 'latest', 'latest', keyList[0], keyList[0]);
+    logger.debug(`tempDiff src logic x proxy after set A: ${JSON.stringify(tempDiff)}`);
+    expect(tempDiff.isEmpty()).to.be.false;
 
     const initialization = await chainProxy.initializeProxyContract();
     if (!initialization) {

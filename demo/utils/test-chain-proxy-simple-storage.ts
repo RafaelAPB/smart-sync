@@ -184,13 +184,15 @@ export class TestChainProxySimpleStorage {
 
         // Initialize or retrieve proxy contract
 
+
+        // logger.debug(`Compiling proxy with relay ${this.relayContract.address}, logic ${this.logicContract.address}, source ${this.srcContract.address}`);
+
         const compiledProxy = await ProxyContractBuilder.compiledAbiAndBytecode(this.relayContract.address, this.logicContract.address, this.srcContract.address);
         if (compiledProxy.error) {
             logger.error('Could not get the compiled proxy...');
             process.exit(-1);
         }
 
-        // deploy the proxy with the state of the `srcContract`
         const proxyFactory = new ethers.ContractFactory(PROXY_INTERFACE, compiledProxy.bytecode, this.targetDeployer);
         this.proxyContract = await proxyFactory.deploy();
 
@@ -200,8 +202,16 @@ export class TestChainProxySimpleStorage {
         //     ContractArtifacts.targetSigner,
         // );
 
+        
         logger.debug('Updated proxy contract deployed at:', this.proxyContract.address);
         // migrate storage
+       
+        // proofs should be different
+        const lb = await this.targetProvider.send('eth_getBlockByNumber', ['latest', true]);
+        logger.debug(`Fetching proof with params ${this.proxyContract.address}, ${keyList}, ${latestBlock.number}`);
+        const pp = await this.targetProvider.send('eth_getProof', [this.proxyContract.address, keyList, lb.number]);
+        
+       
         logger.debug('migrating storage');
         const proxykeys: Array<String> = [];
         const proxyValues: Array<String> = [];
@@ -211,11 +221,11 @@ export class TestChainProxySimpleStorage {
         });
         const storageAdds: Promise<any>[] = [];
         storageAdds.push(this.proxyContract.addStorage(proxykeys, proxyValues, { gasLimit: this.httpConfig.gasLimit }));
-
+        const waitToCompletion =  new Promise((resolve) => setTimeout(resolve, 20000));
         try {
-            await Promise.all(storageAdds);
+            await Promise.all([storageAdds,waitToCompletion]);
         } catch (e) {
-            logger.error('Could not insert multiple values in srcContract');
+            logger.error('Could not insert value in srcContract');
             logger.error(e);
             process.exit(-1);
         }
@@ -235,13 +245,16 @@ export class TestChainProxySimpleStorage {
 
         //  getting encoded block header
         const encodedBlockHeader = encodeBlockHeader(latestProxyChainBlock);
+        try {
+            const tx = await this.relayContract.verifyMigrateContract(sourceAccountProof, proxyAccountProof, encodedBlockHeader, this.proxyContract.address, ethers.BigNumber.from(latestProxyChainBlock.number).toNumber(), ethers.BigNumber.from(latestBlock.number).toNumber(), { gasLimit: this.httpConfig.gasLimit });
+            const receipt = await tx.wait();
+            logger.trace(receipt);
 
-        const tx = await this.relayContract.verifyMigrateContract(sourceAccountProof, proxyAccountProof, encodedBlockHeader, this.proxyContract.address, ethers.BigNumber.from(latestProxyChainBlock.number).toNumber(), ethers.BigNumber.from(latestBlock.number).toNumber(), { gasLimit: this.httpConfig.gasLimit });
-        const receipt = await tx.wait();
-        logger.trace(receipt);
-        const gasUsedForTx = receipt.gasUsed.toNumber();
-        logger.debug(`Gas used for verifying contract migration: ${gasUsedForTx}`);
-
+        } catch (error) {
+            logger.error(`Error at migrating contract ${error.transactionHash}`);
+            process.exit(-1);
+        }
+        
         //  validating
         const migrationValidated = await this.relayContract.getMigrationState(this.proxyContract.address);
 

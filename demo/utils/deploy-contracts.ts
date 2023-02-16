@@ -106,7 +106,7 @@ async function compileAndDeployProxyContractTarget(): Promise<Contract | undefin
 
 async function main() {
 
-    await deploySimpleStorageSource();
+    await deployRelay();
 }
 
 main()
