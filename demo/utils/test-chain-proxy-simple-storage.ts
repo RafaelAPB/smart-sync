@@ -221,7 +221,7 @@ export class TestChainProxySimpleStorage {
         });
         const storageAdds: Promise<any>[] = [];
         storageAdds.push(this.proxyContract.addStorage(proxykeys, proxyValues, { gasLimit: this.httpConfig.gasLimit }));
-        const waitToCompletion =  new Promise((resolve) => setTimeout(resolve, 20000));
+        const waitToCompletion =  await new Promise((resolve) => setTimeout(resolve, 20000));
         try {
             await Promise.all([storageAdds,waitToCompletion]);
         } catch (e) {
@@ -251,11 +251,12 @@ export class TestChainProxySimpleStorage {
             logger.trace(receipt);
 
         } catch (error) {
-            logger.error(`Error at migrating contract ${error.transactionHash}`);
+            logger.error(`Error at migrating contract ${error}`);
             process.exit(-1);
         }
         
         //  validating
+        await new Promise((resolve) => setTimeout(resolve, 20000));
         const migrationValidated = await this.relayContract.getMigrationState(this.proxyContract.address);
 
         this.migrationState = migrationValidated;
@@ -351,7 +352,6 @@ export class TestChainProxySimpleStorage {
 
         const rlpProof = await changedKeysProof.optimizedProof(latestBlock.stateRoot, false);
         await this.relayContract.addBlock(latestBlock.stateRoot, latestBlock.number);
-
         // update the proxy storage
         let txResponse;
         let receipt;

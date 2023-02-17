@@ -101,6 +101,29 @@ async function main() {
     logger.debug(`diffFinal: ${JSON.stringify(diffFinal)}`);
     //while diff is not empty, wait x seconds (instead of 25s above)
     expect(diffFinal.isEmpty()).to.be.true;
+
+    // change value again
+    await chainProxy.setA(randomValue + 1);
+    // wait until new value of A is committed
+    await new Promise((resolve) => setTimeout(resolve, 20000));
+
+    const newDiff = await differ.getDiffFromStorage(contractSourceChainSource.address, initialization.proxyContract.address, 'latest', 'latest', keyList[0], keyList[0]);
+    logger.debug(`new diff, no longer synced: ${JSON.stringify(newDiff)}`);
+    expect(newDiff.isEmpty()).to.be.false;
+    const changedKeys = newDiff.getKeys();
+    // migrate changes to proxy contract
+
+    const migrationResult = await chainProxy.migrateChangesToProxy(changedKeys);
+    expect(migrationResult.migrationResult).to.be.true;
+    if (!migrationResult.receipt) {
+        logger.fatal('No receipt provided');
+        process.exit(-1);
+    }
+
+    // after update storage layouts are equal, no diffs
+    const finalDiff = await differ.getDiffFromStorage(contractSourceChainSource.address, initialization.proxyContract.address, 'latest', 'latest', keyList[0], keyList[0]);
+    logger.debug(`new diff, no longer synced: ${JSON.stringify(finalDiff)}`);
+    expect(finalDiff.isEmpty()).to.be.true;
 }
 
 main()
