@@ -2,6 +2,7 @@
     "extends": "@tsconfig/node14/tsconfig.json",
     "compilerOptions": {
         "declaration": true,
+        "target": "ES2021",
         "noImplicitAny": false,
         "strictPropertyInitialization": false,
         "outDir": "dist",
