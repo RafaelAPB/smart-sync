@@ -155,6 +155,10 @@ export class TestChainProxySimpleStorage {
         logger.setSettings({ minLevel: 'debug', name: 'testchainproxy' });
     }
 
+    getKeyList(): String[] {
+        return this.keyList;
+    }
+
     async initKeyList(list: String[]) {
         this.keyList = list;
         logger.debug('new key list set');

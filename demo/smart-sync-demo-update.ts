@@ -50,6 +50,11 @@ async function main() {
     // should be 0 by default, but after first iteration will change
     const value = await contractSourceChainSource.getA();
     logger.debug('Value of logic source contract is:', value);
+    
+    // should be 0 by default, but after first iteration will change
+    const valueT = await contractTargetChainLogic.getA();
+    logger.debug('Value of logic source contract is:', valueT);
+    
 
     // first number from simple storage smart contract
     const paddedSlot = ethers.utils.hexZeroPad('0x00', 32);
