@@ -265,7 +265,7 @@ export class TestChainProxySimpleStorage {
         };
     }
 
-    async initializeProxyContractWithDeployedProxy(): Promise<InitializationResult> {
+    async initializeProxyContractWithDeployedProxy(proxyAddress: string): Promise<InitializationResult> {
         const { keyList } = this;
 
         const latestBlock = await this.srcProvider.send('eth_getBlockByNumber', ['latest', true]);
@@ -290,7 +290,7 @@ export class TestChainProxySimpleStorage {
 
 
         this.proxyContract = <ProxyContract> new ethers.Contract(
-            CONTRACT_TARGETCHAIN_PROXY as string,
+            proxyAddress,
             ContractArtifacts.abiProxyContract,
             ContractArtifacts.targetSigner,
         );
