@@ -237,7 +237,7 @@ export class TestChainProxySimpleStorage {
         const processedProxyChainProof = new GetProof(proxyChainProof);
 
         const proxyAccountProof = await processedProxyChainProof.optimizedProof(latestProxyChainBlock.stateRoot, false);
-
+        logger.debug(`optimized proof: ${JSON.stringify(proxyAccountProof)}`);
         //  getting encoded block header
         const encodedBlockHeader = encodeBlockHeader(latestProxyChainBlock);
         try {
@@ -333,7 +333,7 @@ export class TestChainProxySimpleStorage {
         const processedProxyChainProof = new GetProof(proxyChainProof);
 
         const proxyAccountProof = await processedProxyChainProof.optimizedProof(latestProxyChainBlock.stateRoot, false);
-
+        logger.debug(`optimized proof: ${JSON.stringify(proxyAccountProof)}`);
         //  getting encoded block header
         const encodedBlockHeader = encodeBlockHeader(latestProxyChainBlock);
         try {
