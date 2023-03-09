@@ -7,17 +7,17 @@ export const PROXY_CONTRACT_FILE_NAME = `${PROXY_CONTRACT_NAME}.json`;
 /**
  * The placeholder address used in the `ProxyContract.sol` for the relay contract
  */
-export const RELAY_CONTRACT_PLACEHOLDER_ADDRESS = '0x75b82024F44F5633983B49558Fb66Cd113655ae4';
+export const RELAY_CONTRACT_PLACEHOLDER_ADDRESS = '0x4f0CDCa5470BF943dC7510aBcf0300C815a08E2E';
 
 /**
  * The placeholder address used in the `ProxyContract.sol` for the logic contract
  */
-export const LOGIC_CONTRACT_PLACEHOLDER_ADDRESS = '0xA182E0C806fc7B2f5509CE7E325f9600f1f50fe9';
+export const LOGIC_CONTRACT_PLACEHOLDER_ADDRESS = '0xf6eEcb3Cf7E5AE65133A4E4D1D1a9a1ca9d9e87b';
 
 /**
  * The placeholder address used in the `ProxyContract.sol` for the logic contract
  */
-export const SOURCE_CONTRACT_PLACEHOLDER_ADDRESS = '0x9a14933252EeF180aCfBCADBAb01A1ca8A61a833';
+export const SOURCE_CONTRACT_PLACEHOLDER_ADDRESS = '0xF7E3b5a30197D1AF39f5Bb7Bfb65FA67f15595a3';
 
 export const PROXY_INTERFACE = [
     'constructor()',
