@@ -164,7 +164,12 @@ export class TestChainProxySimpleStorage {
         logger.debug('new key list set');
     }
 
-    async initializeProxyContract(): Promise<InitializationResult> {
+    async initializeProxyContract(wait?: number): Promise<InitializationResult> {
+        let waitMiliseconds = 5000;
+        if (wait) {
+            waitMiliseconds = wait * 1000;
+        }
+
         const { keyList } = this;
 
         const latestBlock = await this.srcProvider.send('eth_getBlockByNumber', ['latest', true]);
@@ -217,7 +222,7 @@ export class TestChainProxySimpleStorage {
         const storageAdds: Promise<any>[] = [];
         storageAdds.push(this.proxyContract.addStorage(proxykeys, proxyValues, { gasLimit: this.httpConfig.gasLimit }));
         logger.warn("timeout is needed so new block is added to the chain, otherwise proof verification will fail")
-        const waitToCompletion = await new Promise((resolve) => setTimeout(resolve, 20000));
+        const waitToCompletion = await new Promise((resolve) => setTimeout(resolve, waitMiliseconds));
         try {
         await Promise.all([storageAdds, waitToCompletion]);
         } catch (e) {
@@ -251,7 +256,7 @@ export class TestChainProxySimpleStorage {
         }
 
         //  validating
-        //await new Promise((resolve) => setTimeout(resolve, 20000));
+        await new Promise((resolve) => setTimeout(resolve, waitMiliseconds));
         const migrationValidated = await this.relayContract.getMigrationState(this.proxyContract.address);
 
         this.migrationState = migrationValidated;
