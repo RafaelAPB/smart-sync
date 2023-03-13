@@ -216,13 +216,14 @@ export class TestChainProxySimpleStorage {
         });
         const storageAdds: Promise<any>[] = [];
         storageAdds.push(this.proxyContract.addStorage(proxykeys, proxyValues, { gasLimit: this.httpConfig.gasLimit }));
+        logger.warn("timeout is needed so new block is added to the chain, otherwise proof verification will fail")
         const waitToCompletion = await new Promise((resolve) => setTimeout(resolve, 20000));
         try {
-            await Promise.all([storageAdds, waitToCompletion]);
+        await Promise.all([storageAdds, waitToCompletion]);
         } catch (e) {
             logger.error('Could not insert value in srcContract');
             logger.error(e);
-            process.exit(-1);
+            throw new Error(e as string);
         }
         logger.debug('done.');
 
@@ -237,7 +238,7 @@ export class TestChainProxySimpleStorage {
         const processedProxyChainProof = new GetProof(proxyChainProof);
 
         const proxyAccountProof = await processedProxyChainProof.optimizedProof(latestProxyChainBlock.stateRoot, false);
-        logger.debug(`optimized proof: ${JSON.stringify(proxyAccountProof)}`);
+        logger.trace(`optimized proof: ${JSON.stringify(proxyAccountProof)}`);
         //  getting encoded block header
         const encodedBlockHeader = encodeBlockHeader(latestProxyChainBlock);
         try {
@@ -246,11 +247,11 @@ export class TestChainProxySimpleStorage {
             logger.trace(receipt);
         } catch (error) {
             logger.error(`Error at migrating contract ${error}`);
-            process.exit(-1);
+            throw new Error(error as string);
         }
 
         //  validating
-        await new Promise((resolve) => setTimeout(resolve, 20000));
+        //await new Promise((resolve) => setTimeout(resolve, 20000));
         const migrationValidated = await this.relayContract.getMigrationState(this.proxyContract.address);
 
         this.migrationState = migrationValidated;
@@ -318,7 +319,7 @@ export class TestChainProxySimpleStorage {
         } catch (e) {
             logger.error('Could not insert value in srcContract');
             logger.error(e);
-            process.exit(-1);
+            throw new Error(e as string);
         }
         logger.debug('done.');
 
@@ -333,7 +334,7 @@ export class TestChainProxySimpleStorage {
         const processedProxyChainProof = new GetProof(proxyChainProof);
 
         const proxyAccountProof = await processedProxyChainProof.optimizedProof(latestProxyChainBlock.stateRoot, false);
-        logger.debug(`optimized proof: ${JSON.stringify(proxyAccountProof)}`);
+        logger.trace(`optimized proof: ${JSON.stringify(proxyAccountProof)}`);
         //  getting encoded block header
         const encodedBlockHeader = encodeBlockHeader(latestProxyChainBlock);
         try {
@@ -342,7 +343,7 @@ export class TestChainProxySimpleStorage {
             logger.trace(receipt);
         } catch (error) {
             logger.error(`Error at migrating contract ${error}`);
-            process.exit(-1);
+            throw new Error(error as string);
         }
 
         //  validating
