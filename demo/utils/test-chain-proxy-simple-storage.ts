@@ -140,6 +140,8 @@ export class TestChainProxySimpleStorage {
 
     private keyList: String[];
 
+    private proxyAddress: string;
+
     constructor(srcContract: SimpleStorage, logicContract: SimpleStorage, httpConfig: TxContractInteractionOptions, srcDeployer: Wallet, targetDeployer: Wallet, relayContract: RelayContract, srcProvider: JsonRpcProvider, targetProvider: JsonRpcProvider) {
         this.srcContract = srcContract;
         this.logicContract = logicContract;
@@ -152,6 +154,8 @@ export class TestChainProxySimpleStorage {
         this.differ = new DiffHandler(this.srcProvider, this.targetProvider);
         this.migrationState = false;
         this.keyList = [];
+        this.proxyAddress = 'undefined';
+
         logger.setSettings({ minLevel: 'debug', name: 'testchainproxy' });
     }
 
@@ -164,12 +168,24 @@ export class TestChainProxySimpleStorage {
         logger.debug('new key list set');
     }
 
+    setProxyAddress(address: string) {
+        this.proxyAddress = address;
+    }
+
+    getProxyAddress() {
+        return this.proxyAddress;
+    }
+
     async initializeProxyContract(wait?: number): Promise<InitializationResult> {
         let waitMiliseconds = 5000;
         if (wait) {
             waitMiliseconds = wait * 1000;
         }
-
+        logger.warn(`relay address is ${this.relayContract.address}`);
+        logger.warn(`src address is ${this.srcContract.address}`);
+        logger.warn(`logic address is ${this.logicContract.address}`);
+        logger.warn(`Waiting ${waitMiliseconds / 1000} seconds for the proxy contract to be deployed`);
+       
         const { keyList } = this;
 
         const latestBlock = await this.srcProvider.send('eth_getBlockByNumber', ['latest', true]);
@@ -271,29 +287,8 @@ export class TestChainProxySimpleStorage {
         };
     }
 
-    async initializeProxyContractWithDeployedProxy(proxyAddress: string): Promise<InitializationResult> {
-        const { keyList } = this;
-
-        const latestBlock = await this.srcProvider.send('eth_getBlockByNumber', ['latest', true]);
-        // create a proof of the source contract's storage
-        this.initialValuesProof = new GetProof(await this.srcProvider.send('eth_getProof', [this.srcContract.address, keyList, latestBlock.number]));
-
-        // getting depth of mpt
-        this.max_mpt_depth = 0;
-        this.initialValuesProof.storageProof.forEach((storageProof) => {
-            if (this.max_mpt_depth < storageProof.proof.length) this.max_mpt_depth = storageProof.proof.length;
-        });
-
-        // getting min depth of mpt
-        this.min_mpt_depth = this.max_mpt_depth;
-        this.initialValuesProof.storageProof.forEach((storageProof) => {
-            if (this.min_mpt_depth > storageProof.proof.length) this.min_mpt_depth = storageProof.proof.length;
-        });
-
-        await this.relayContract.addBlock(latestBlock.stateRoot, latestBlock.number);
-
-        logger.debug(`Using proxy ${CONTRACT_TARGETCHAIN_PROXY}`);
-
+    async setProxy(proxyAddress: string): Promise<void> {
+       
 
         this.proxyContract = <ProxyContract> new ethers.Contract(
             proxyAddress,
@@ -301,70 +296,8 @@ export class TestChainProxySimpleStorage {
             ContractArtifacts.targetSigner,
         );
 
-        logger.debug('Updated proxy contract deployed at:', this.proxyContract.address);
-        // migrate storage
-
-        // proofs should be different
-        const lb = await this.targetProvider.send('eth_getBlockByNumber', ['latest', true]);
-        logger.debug(`Fetching proof with params ${this.proxyContract.address}, ${keyList}, ${latestBlock.number}`);
-        const pp = await this.targetProvider.send('eth_getProof', [this.proxyContract.address, keyList, lb.number]);
-
-        logger.debug('migrating storage');
-        const proxykeys: Array<String> = [];
-        const proxyValues: Array<String> = [];
-        this.initialValuesProof.storageProof.forEach((storageProof) => {
-            proxykeys.push(ethers.utils.hexZeroPad(storageProof.key, 32));
-            proxyValues.push(ethers.utils.hexZeroPad(storageProof.value, 32));
-        });
-        const storageAdds: Promise<any>[] = [];
-        storageAdds.push(this.proxyContract.addStorage(proxykeys, proxyValues, { gasLimit: this.httpConfig.gasLimit }));
-        const waitToCompletion = await new Promise((resolve) => setTimeout(resolve, 20000));
-        try {
-            await Promise.all([storageAdds, waitToCompletion]);
-        } catch (e) {
-            logger.error('Could not insert value in srcContract');
-            logger.error(e);
-            throw new Error(e as string);
-        }
-        logger.debug('done.');
-
-        // validate migration
-        //  getting account proof from source contract
-        const sourceAccountProof = await this.initialValuesProof.optimizedProof(latestBlock.stateRoot, false);
-
-        //  getting account proof from proxy contract
-        const latestProxyChainBlock = await this.targetProvider.send('eth_getBlockByNumber', ['latest', true]);
-        logger.debug(`Fetching proof with params ${this.proxyContract.address}, ${keyList}, ${latestBlock.number}`);
-        const proxyChainProof = await this.targetProvider.send('eth_getProof', [this.proxyContract.address, keyList, latestProxyChainBlock.number]);
-        const processedProxyChainProof = new GetProof(proxyChainProof);
-
-        const proxyAccountProof = await processedProxyChainProof.optimizedProof(latestProxyChainBlock.stateRoot, false);
-        logger.trace(`optimized proof: ${JSON.stringify(proxyAccountProof)}`);
-        //  getting encoded block header
-        const encodedBlockHeader = encodeBlockHeader(latestProxyChainBlock);
-        try {
-            const tx = await this.relayContract.verifyMigrateContract(sourceAccountProof, proxyAccountProof, encodedBlockHeader, this.proxyContract.address, ethers.BigNumber.from(latestProxyChainBlock.number).toNumber(), ethers.BigNumber.from(latestBlock.number).toNumber(), { gasLimit: this.httpConfig.gasLimit });
-            const receipt = await tx.wait();
-            logger.trace(receipt);
-        } catch (error) {
-            logger.error(`Error at migrating contract ${error}`);
-            throw new Error(error as string);
-        }
-
-        //  validating
-        await new Promise((resolve) => setTimeout(resolve, 20000));
-        const migrationValidated = await this.relayContract.getMigrationState(this.proxyContract.address);
-
-        this.migrationState = migrationValidated;
-        return {
-            max_mpt_depth: this.max_mpt_depth,
-            min_mpt_depth: this.min_mpt_depth,
-            proxyContract: this.proxyContract,
-            migrationState: migrationValidated,
-            keys: this.keys,
-            values: this.values,
-            initialValuesProof: this.initialValuesProof,
-        };
+      
+        
     }
 
     async changeValueAtMTHeight(mtHeight: number, max_value: number): Promise<Boolean> {
@@ -420,12 +353,18 @@ export class TestChainProxySimpleStorage {
         await this.srcContract.setA(num);
     }
 
-    async migrateChangesToProxy(changedKeys: Array<BigNumberish>, isDeployed?: boolean): Promise<MigrationResult> {
-        if (!this.migrationState && !isDeployed) {
+    async migrateChangesToProxy(changedKeys: Array<BigNumberish>, isDeployed?: boolean, wait?: number): Promise<MigrationResult> {
+        const state = this.migrationState;
+        if (!state && !isDeployed) {
             logger.error('Proxy contract is not initialized yet.');
             return { migrationResult: false };
         }
-
+        let waitMiliseconds = 5000;
+        if (wait) {
+            waitMiliseconds = wait * 1000;
+        }
+        logger.warn(`Waiting ${waitMiliseconds / 1000} seconds for the block to be added`);
+       
         if (changedKeys.length < 1) {
             return {
                 migrationResult: true,
@@ -448,6 +387,8 @@ export class TestChainProxySimpleStorage {
 
         const rlpProof = await changedKeysProof.optimizedProof(latestBlock.stateRoot, false);
         await this.relayContract.addBlock(latestBlock.stateRoot, latestBlock.number);
+        await new Promise((resolve) => setTimeout(resolve, waitMiliseconds));
+
         // update the proxy storage
         let txResponse;
         let receipt;
@@ -461,7 +402,7 @@ export class TestChainProxySimpleStorage {
             if (checker) {
                 logger.error(`'${hexToAscii(checker[1])}'`);
                 logger.fatal(e);
-            } else logger.fatal(e);
+            } else throw new Error (e as string);
             return { migrationResult: false };
         }
 
