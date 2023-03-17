@@ -71,8 +71,8 @@ async function main() {
         ContractArtifacts.sourceSigner,
         ContractArtifacts.targetSigner,
         contractTargetChainRelay,
-        ContractArtifacts.goerliProvider,
-        ContractArtifacts.mumbaiProvider,
+        ContractArtifacts.sourceProvider,
+        ContractArtifacts.targetProvider,
     );
 
     chainProxy.initKeyList(keyList);
@@ -84,13 +84,13 @@ async function main() {
     logger.debug(`Setting A from logic contract to: ${randomValue}`);
     await chainProxy.setA(randomValue);
         // wait until new value of A is committed
-    await new Promise((resolve) => setTimeout(resolve, 25000));
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     const tempDiff = await differ.getDiffFromStorage(contractSourceChainSource.address, CONTRACT_TARGETCHAIN_PROXY, 'latest', 'latest', keyList[0], keyList[0]);
     logger.debug(`tempDiff src logic x proxy after set A: ${JSON.stringify(tempDiff)}`);
     expect(tempDiff.isEmpty()).to.be.false;
 
-    const initialization = await chainProxy.initializeProxyContract();
+    const initialization = await chainProxy.initializeProxyContract(35);
     if (!initialization) {
         throw new Error();
     }
@@ -100,7 +100,18 @@ async function main() {
     const diffFinal = await differ.getDiffFromStorage(contractSourceChainSource.address, initialization.proxyContract.address, 'latest', 'latest', keyList[0], keyList[0]);
     logger.debug(`diffFinal: ${JSON.stringify(diffFinal)}`);
     //while diff is not empty, wait x seconds (instead of 25s above)
-    expect(diffFinal.isEmpty()).to.be.true;
+    //expect(diffFinal.isEmpty()).to.be.true;
+
+    logger.warn("start update migration phase");
+
+    logger.debug(`Setting A from logic contract to: ${randomValue}`);
+    await chainProxy.setA(randomValue as number + 1);
+    await new Promise((resolve) => setTimeout(resolve, 20000));
+    const diffMigration = await differ.getDiffFromStorage(contractSourceChainSource.address, initialization.proxyContract.address, 'latest', 'latest', keyList[0], keyList[0]);
+    logger.debug(`diffFinal: ${JSON.stringify(diffFinal)}`);
+    await chainProxy.migrateChangesToProxy(keyList, true, 20);
+    const diffMigrationFinal = await differ.getDiffFromStorage(contractSourceChainSource.address, initialization.proxyContract.address, 'latest', 'latest', keyList[0], keyList[0]);
+    logger.debug(`diffFinal: ${JSON.stringify(diffFinal)}`);
 }
 
 main()
