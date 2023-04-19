@@ -38,15 +38,7 @@ export namespace ContractArtifacts {
     export const abiRelay = require('../../artifacts/contracts/RelayContract.sol/RelayContract.json').abi;
     export const bytecodeRelay = require('../../artifacts/contracts/RelayContract.sol/RelayContract.json').bytecode;
     export const RelayTarget = new ethers.ContractFactory(abiRelay, bytecodeRelay, targetSigner);
-
-    export const abiMapping = require('../../artifacts/contracts/MappingContract.sol/MappingContract.json').abi;
-    export const bytecodeMapping = require('../../artifacts/contracts/MappingContract.sol/MappingContract.json').bytecode;
-    export const MapperTarget = new ethers.ContractFactory(abiMapping, bytecodeMapping, targetSigner);
-
-    export const abiSyncCandidate = require('../../artifacts/contracts/SyncCandidate.sol/SyncCandidate.json').abi;
-    export const bytecodeSyncCandidate = require('../../artifacts/contracts/SyncCandidate.sol/SyncCandidate.json').bytecode;
-    export const SyncCandidateTarget = new ethers.ContractFactory(abiSyncCandidate, bytecodeSyncCandidate, targetSigner);
-
+    
     export const abiProxyContract = require('../../artifacts/contracts/ProxyContract.sol/ProxyContract.json').abi;
     export const bytecodeProxyContract = require('../../artifacts/contracts/ProxyContract.sol/ProxyContract.json').bytecode;
     export const ProxyContractTarget = new ethers.ContractFactory(abiProxyContract, bytecodeProxyContract, targetSigner);

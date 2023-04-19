@@ -130,6 +130,54 @@ class DiffHandler {
         /* eslint-enable no-restricted-syntax */
         return new StorageDiff(diffs, fromKeys, toKeys);
     }
+     
+    async getDiffFromStorageModified(srcAddress: string, targetAddress?: string, srcBlock?: string | number, targetBlock?: string | number, storageKeySrc?: string, storageKeyTarget?: string): Promise<any> {
+        let processedParameters: ProcessedParameters;
+        try {
+            processedParameters = await processParameters(srcAddress, this.srcProvider, srcBlock, targetAddress, this.targetProvider, targetBlock);
+        } catch (e) {
+            logger.error(e);
+            return new StorageDiff([], [], []);
+        }
+
+        let toKeys;
+        let fromKeys;
+
+        if (storageKeySrc === undefined) {
+            toKeys = await getAllKeys(processedParameters.targetAddress, this.targetProvider, processedParameters.targetBlock, this.batchSize);
+            fromKeys = await getAllKeys(processedParameters.srcAddress, this.srcProvider, processedParameters.srcBlock, this.batchSize);
+        } else {
+            fromKeys = [storageKeySrc];
+            toKeys = [storageKeyTarget];
+        }
+        const diffs: StorageKeyDiff[] = [];
+
+        /* eslint-disable no-await-in-loop */
+        for (let i = 0; i < fromKeys.length; i += 1) {
+            const key: string = fromKeys[i];
+            const index: number = toKeys.indexOf(key);
+            if (index !== -1) {
+                toKeys.splice(index, 1);
+                // check if there are any differences in the values
+                const valueFrom = await this.srcProvider.getStorageAt(processedParameters.srcAddress, key, processedParameters.srcBlock);
+                const valueTo = await this.targetProvider.getStorageAt(processedParameters.targetAddress, key, processedParameters.targetBlock);
+                if (valueFrom !== valueTo) {
+                    diffs.push(new Change(key, valueFrom, valueTo));
+                }
+            } else {
+                // key is only present in `sourceAddress`
+                diffs.push(new Remove(key, await this.srcProvider.getStorageAt(processedParameters.srcAddress, key, processedParameters.srcBlock)));
+            }
+        }
+        // keys that are present in block `target` but not in `srcBlock`.
+        /* eslint-disable no-restricted-syntax */
+        for (const key of toKeys) {
+            diffs.push(new Add(key, await this.targetProvider.getStorageAt(processedParameters.targetAddress, key, processedParameters.targetBlock)));
+        }
+        /* eslint-enable no-await-in-loop */
+        /* eslint-enable no-restricted-syntax */
+        return diffs;
+    }
 
     /**
      * Create a diff of the `srcAddress` storage between block `srcBlock` and `targetBlock`.
