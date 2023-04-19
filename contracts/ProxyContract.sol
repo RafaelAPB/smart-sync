@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity 0.7.0;
+pragma solidity 0.8.9;
 
 import "./RelayContract.sol";
 import "./GetProofLib.sol";
@@ -11,6 +11,11 @@ contract ProxyContract {
     struct NodeInfo { 
         uint mtHeight; 
     }
+    event RootObtained(bytes32 root);
+    event MigrationConfirmed();
+    event ProofVerified();
+    event RootsComputedAndVerified();
+
     struct BranchInfo { 
         uint generalChildAmount;
         uint oldValueIndex;
@@ -25,22 +30,31 @@ contract ProxyContract {
     * @dev address of the deployed relay contract.
     * The address in the file is a placeholder
     */
-    address internal constant RELAY_ADDRESS = 0x4f0CDCa5470BF943dC7510aBcf0300C815a08E2E;
+    address internal constant RELAY_ADDRESS = 0x0C4a7E71e50d4202Ff02a5D872e6d53b0aEd0602;
 
     /**
     * @dev address of the contract that is being mirrored.
     * The address in the file is a placeholder
     */
-    address internal constant SOURCE_ADDRESS = 0xF7E3b5a30197D1AF39f5Bb7Bfb65FA67f15595a3;
+    address internal constant SOURCE_ADDRESS = 0xd1bA8846E2ad20173534c631D62CCDc84a1bf364;
 
     /**
     * @dev address of the contract that is being mirrored.
     * The address in the file is a placeholder
     */
-    address internal constant LOGIC_ADDRESS = 0xf6eEcb3Cf7E5AE65133A4E4D1D1a9a1ca9d9e87b;
+    address internal constant LOGIC_ADDRESS = 0x5870B4aefFC207C87174246e084a781a2ad0F1ef;
 
-    constructor() public {
+    constructor() {
     }
+
+    // constructor(address _relay, address _source, address _logic) {
+    //     require(_relay != address(0), 'relay address cannot be 0');
+    //     require(_source != address(0), 'source address cannot be 0');
+    //     require(_logic != address(0), 'logic address cannot be 0');
+    //     RELAY_ADDRESS = _relay;
+    //     SOURCE_ADDRESS = _source;
+    //     LOGIC_ADDRESS = _logic;
+    // }
 
     /**
     * @dev Adds values to the storage. Used for initialization.
@@ -255,12 +269,12 @@ contract ProxyContract {
         res[0] = bytes1(hp_encoding) << 4;
         uint currPos = nodeInfo.mtHeight;
         if (hp_encoding != 2) {
-            res[0] = res[0] | _getNthNibbleOfBytes(currPos, bytesHashedKey);
+            res[0] = res[0] | _getNthNibbleOfBytes(currPos, bytesHashedKey)[0];
             currPos++;
         }
         // add the rest
         for (uint k = 1; k < res.length; k++) {
-            res[k] = _getNthNibbleOfBytes(currPos, bytesHashedKey) << 4 | _getNthNibbleOfBytes(currPos + 1, bytesHashedKey);
+            res[k] = _getNthNibbleOfBytes(currPos, bytesHashedKey)[0] << 4 | _getNthNibbleOfBytes(currPos + 1, bytesHashedKey)[0];
             currPos += 2;
         }
         bytes[] memory _list = new bytes[](2);
@@ -421,7 +435,7 @@ contract ProxyContract {
         return (oldParentHash, newParentHash);
     }
 
-    function computeOldItem(RLPReader.RLPItem[] memory proofNode, NodeInfo memory nodeInfo) internal view returns (bytes memory oldNode, NodeType) {
+    function computeOldItem(RLPReader.RLPItem[] memory proofNode, NodeInfo memory nodeInfo) internal view returns (bytes memory oldNode, NodeType nt) {
         // the updated reference hash
         bytes32 oldParentHash;
         nodeInfo.mtHeight = nodeInfo.mtHeight + 1;
@@ -575,8 +589,8 @@ contract ProxyContract {
      *@param Bytes String
      *@return ByteString[N]
      */
-    function _getNthNibbleOfBytes(uint n, bytes memory str) private pure returns (byte) {
-        return byte(n % 2 == 0 ? uint8(str[n / 2]) / 0x10 : uint8(str[n / 2]) % 0x10);
+    function _getNthNibbleOfBytes(uint n, bytes memory str) private pure returns (bytes memory) {
+        return abi.encodePacked(n % 2 == 0 ? uint8(str[n / 2]) / 0x10 : uint8(str[n / 2]) % 0x10);
     }
 
     /**
@@ -585,15 +599,51 @@ contract ProxyContract {
     * Secondly verify that the current value is part of the current storage root (old contract state proof)
     * Third step is verifying the provided storage proofs provided in the `proof` (new contract state proof)
     * @param proof The rlp encoded optimized proof
-    * @param blockNumber The block number of the src chain from which to take the stateRoot of the srcContract
     */
-    function updateStorage(bytes memory proof, uint blockNumber) public {
+    function updateStorage(bytes memory proof) public {
+        // First verify stateRoot -> account (account proof)
+        RelayContract relay = getRelay();
+        require(relay.getMigrationState(address(this)), 'migration not completed');
+        emit MigrationConfirmed();
+
+        // get the current state root of the source chain
+        // bytes32 root = relay.getStateRootDendreth();
+        bytes32 root = relay.getLatestStateRoot();
+
+        emit RootObtained(root);
+        // validate that the proof was obtained for the source contract and the account's storage is part of the current state
+        bytes memory path = GetProofLib.encodedAddress(SOURCE_ADDRESS);
+
+        GetProofLib.GetProof memory getProof = GetProofLib.parseProof(proof);
+        require(GetProofLib.verifyProof(getProof.account, getProof.accountProof, path, root), "Failed to verify the account proof");
+
+        emit ProofVerified();
+        // GetProofLib.Account memory account = GetProofLib.parseAccount(getProof.account);
+
+        // bytes32 lastValidParentHash = getRelay().getStorageRoot();
+
+        // (bytes32 oldParentHash, bytes32 newParentHash) = computeRoots(getProof.storageProofs);
+
+        // // Second verify proof would map to current state by replacing values with current values (old contract state proof)
+        // require(lastValidParentHash == oldParentHash, "Failed to verify old contract state proof");
+
+        // // Third verify proof is valid according to current block in relay contract
+        // require(newParentHash == account.storageHash, "Failed to verify new contract state proof");
+        // emit RootsComputedAndVerified();
+        // update the storage or revert on error
+        setStorageValues(getProof.storageProofs);
+
+        // update the state in the relay
+        //relay.updateProxyInfoLatest(account.storageHash);
+    }
+    
+    function updateStorageModified(bytes memory proof, uint blockNumber) public {
         // First verify stateRoot -> account (account proof)
         RelayContract relay = getRelay();
         require(relay.getMigrationState(address(this)), 'migration not completed');
         
         // get the current state root of the source chain
-        bytes32 root = relay.getStateRoot(blockNumber);
+        bytes32 root = relay.getStateRootDendreth();
         // validate that the proof was obtained for the source contract and the account's storage is part of the current state
         bytes memory path = GetProofLib.encodedAddress(SOURCE_ADDRESS);
 

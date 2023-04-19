@@ -1,8 +1,9 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity 0.7.0;
+pragma solidity 0.8.9;
 
 import './ProxyContract.sol';
 import './GetProofLib.sol';
+import {BeaconLightClient} from './Dendreth/BeaconLightClient.sol';
 
 contract RelayContract {
     event CompareStorageRoots (bytes32 srcAccountHash, bytes32 proxyAccountHash);
@@ -18,8 +19,15 @@ contract RelayContract {
     mapping(address => ProxyContractInfo) proxyStorageInfos;
     mapping(uint => bytes32) srcContractStateRoots;
     uint latestBlockNr;
+    uint latestDendrethBlockNr;
 
-    constructor() public {
+    // DendrETH instance deployed on Mumbai targeting Goerli
+    address internal constant DENDRETH_INSTANCE = 0xA3418F79c98A3E496A5E97610a97f82daE364619;
+    constructor() {
+    }
+
+    function getDendrETH() public pure returns (address) {
+        return DENDRETH_INSTANCE;
     }
 
     /**
@@ -31,9 +39,22 @@ contract RelayContract {
         proxyStorageInfos[msg.sender].migrationState = true;
         proxyStorageInfos[msg.sender].blockNumber = _blockNumber;
     }
+    function updateProxyInfoLatest(bytes32 _newStorage) public {
+        require(proxyStorageInfos[msg.sender].blockNumber < latestBlockNr);
+        proxyStorageInfos[msg.sender].storageRoot = _newStorage;
+        proxyStorageInfos[msg.sender].migrationState = true;
+        proxyStorageInfos[msg.sender].blockNumber = latestBlockNr;
+    }
 
     function addBlock(bytes32 _stateRoot, uint256 _blockNumber) public {
         srcContractStateRoots[_blockNumber] = _stateRoot;
+        if (_blockNumber > latestBlockNr) latestBlockNr = _blockNumber;
+    }
+
+    function addBlockDendreth(uint256 _blockNumber) public {
+        BeaconLightClient beacon = BeaconLightClient(DENDRETH_INSTANCE);
+        bytes32 stateRoot = beacon.execution_state_root();
+        srcContractStateRoots[_blockNumber] = stateRoot;
         if (_blockNumber > latestBlockNr) latestBlockNr = _blockNumber;
     }
 
@@ -43,6 +64,17 @@ contract RelayContract {
     function getStateRoot(uint _blockNumber) public view returns (bytes32) {
         return srcContractStateRoots[_blockNumber];
     }
+    
+    
+    function getLatestStateRoot() public view returns (bytes32) {
+        return srcContractStateRoots[latestBlockNr];
+    }
+
+    function getStateRootDendreth() public view returns (bytes32) {
+        BeaconLightClient beacon = BeaconLightClient(DENDRETH_INSTANCE);
+        return beacon.execution_state_root();
+    }
+
 
     /**
     * @dev return the calling contract's storage root (only correct if stored by the contract before only!)
@@ -70,7 +102,13 @@ contract RelayContract {
     function getLatestBlockNumber() public view returns (uint) {
         return latestBlockNr;
     }
+    function getLatestDendrethBlockNumber() public view returns (uint) {
+        return latestDendrethBlockNr;
+    }
 
+    function setLatestDendrethBlockNumber(uint number) public {
+        latestDendrethBlockNr = number;
+    }
     /**
     * @dev Used to access the Proxy's abi
     */
@@ -88,6 +126,40 @@ contract RelayContract {
     * @param srcChainBlockNumber block number from the src chain from which we take the stateRoot from the srcContract
     */
     function verifyMigrateContract(bytes memory sourceAccountProof, bytes memory proxyAccountProof, bytes memory proxyChainBlockHeader, address payable proxyAddress, uint proxyChainBlockNumber, uint srcChainBlockNumber) public {
+        GetProofLib.BlockHeader memory blockHeader = GetProofLib.parseBlockHeader(proxyChainBlockHeader);
+
+        // compare block header hashes
+        bytes32 givenBlockHeaderHash = keccak256(proxyChainBlockHeader);
+        bytes32 actualBlockHeaderHash = blockhash(proxyChainBlockNumber);
+        require(givenBlockHeaderHash == actualBlockHeaderHash, 'Given proxy chain block header is faulty');
+
+        // verify sourceAccountProof
+        // validate that the proof was obtained for the source contract and the account's storage is part of the current state
+        ProxyContract proxyContract = getProxy(proxyAddress);
+        address sourceAddress = proxyContract.getSourceAddress();
+        bytes memory path = GetProofLib.encodedAddress(sourceAddress);
+        GetProofLib.GetProof memory getProof = GetProofLib.parseProof(sourceAccountProof);
+        require(GetProofLib.verifyProof(getProof.account, getProof.accountProof, path, srcContractStateRoots[srcChainBlockNumber]), "Failed to verify the source account proof");
+        GetProofLib.Account memory sourceAccount = GetProofLib.parseAccount(getProof.account);
+
+        // verify proxyAccountProof
+        // validate that the proof was obtained for the source contract and the account's storage is part of the current state
+        path = GetProofLib.encodedAddress(proxyAddress);
+        getProof = GetProofLib.parseProof(proxyAccountProof);
+        require(GetProofLib.verifyProof(getProof.account, getProof.accountProof, path, blockHeader.storageRoot), "Failed to verify the proxy account proof");
+        GetProofLib.Account memory proxyAccount = GetProofLib.parseAccount(getProof.account);
+
+        emit CompareStorageRoots(sourceAccount.storageHash,proxyAccount.storageHash);
+
+        // compare storageRootHashes
+        require(sourceAccount.storageHash == proxyAccount.storageHash, 'storageHashes of the contracts dont match');
+
+        // update proxy info -> complete migration
+        proxyStorageInfos[proxyAddress].storageRoot = proxyAccount.storageHash;
+        proxyStorageInfos[proxyAddress].migrationState = true;
+        proxyStorageInfos[proxyAddress].blockNumber = srcChainBlockNumber;
+    }
+    function verifyMigrateContractOriginal(bytes memory sourceAccountProof, bytes memory proxyAccountProof, bytes memory proxyChainBlockHeader, address payable proxyAddress, uint proxyChainBlockNumber, uint srcChainBlockNumber) public {
         GetProofLib.BlockHeader memory blockHeader = GetProofLib.parseBlockHeader(proxyChainBlockHeader);
 
         // compare block header hashes

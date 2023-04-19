@@ -4,7 +4,7 @@
 * @author Hamdi Allam hamdi.allam97@gmail.com
 * Please reach out with any questions or concerns
 */
-pragma solidity 0.7.0;
+pragma solidity 0.8.9;
 
 library RLPReader {
     uint8 constant STRING_SHORT_START = 0x80;
@@ -198,9 +198,8 @@ library RLPReader {
 
     function toAddress(RLPItem memory item) internal pure returns (address) {
         // 1 byte for the length prefix
-        require(item.len == 21);
-
-        return address(toUint(item));
+        uint256 intValue = toUint(item);
+    return address(uint160(intValue));
     }
 
     function toUint(RLPItem memory item) internal pure returns (uint) {

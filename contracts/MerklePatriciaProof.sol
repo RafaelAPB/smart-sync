@@ -1,5 +1,5 @@
 // taken from https://github.com/KyberNetwork/peace-relay/blob/master/contracts/MerklePatriciaProof.sol
-pragma solidity 0.7.0;
+pragma solidity 0.8.9;
 
 import "./RLPReader.sol";
 
@@ -79,7 +79,7 @@ library MerklePatriciaProof {
         // pathPtr counts nibbles in path
         // partialPath.length is a number of nibbles
         for (uint i = pathPtr; i < pathPtr + partialPath.length; i++) {
-            byte pathNibble = path[i];
+            bytes1 pathNibble = bytes1(path[i]);
             slicedPath[i - pathPtr] = pathNibble;
         }
 
@@ -96,11 +96,11 @@ library MerklePatriciaProof {
         bytes memory nibbles;
         if (b.length > 0) {
             uint8 offset;
-            uint8 hpNibble = uint8(_getNthNibbleOfBytes(0, b));
+            uint8 hpNibble = uint8(_getNthNibbleOfBytes(0, b)[0]);
             if (hpNibble == 1 || hpNibble == 3) {
                 nibbles = new bytes(b.length * 2 - 1);
-                byte oddNibble = _getNthNibbleOfBytes(1, b);
-                nibbles[0] = oddNibble;
+                bytes memory oddNibble = _getNthNibbleOfBytes(1, b);
+                nibbles[0] = oddNibble[0];
                 offset = 1;
             } else {
                 nibbles = new bytes(b.length * 2 - 2);
@@ -108,7 +108,7 @@ library MerklePatriciaProof {
             }
 
             for (uint i = offset; i < nibbles.length; i++) {
-                nibbles[i] = _getNthNibbleOfBytes(i - offset + 2, b);
+                nibbles[i] = _getNthNibbleOfBytes(i - offset + 2, b)[0];
             }
         }
         return nibbles;
@@ -120,7 +120,7 @@ library MerklePatriciaProof {
      *@param Bytes String
      *@return ByteString[N]
      */
-    function _getNthNibbleOfBytes(uint n, bytes memory str) private pure returns (byte) {
-        return byte(n % 2 == 0 ? uint8(str[n / 2]) / 0x10 : uint8(str[n / 2]) % 0x10);
+    function _getNthNibbleOfBytes(uint n, bytes memory str) private pure returns (bytes memory) {
+        return abi.encodePacked(n % 2 == 0 ? uint8(str[n / 2]) / 0x10 : uint8(str[n / 2]) % 0x10);
     }
 }
